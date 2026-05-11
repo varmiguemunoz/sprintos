@@ -1,0 +1,8 @@
+database:
+  path: ./data/commandpm.db
+
+mcp:
+  port: 8081
+
+auth:
+  callback_port: 8080
