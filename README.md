@@ -1,4 +1,4 @@
-# CommandPM — Descripción General del Proyecto (v1)
+# SprintOs — Descripción General del Proyecto (v1)
 
 > Gestor de proyectos y tareas que vive completamente en la terminal. Diseñado para equipos pequeños que prefieren vivir en la línea de comandos sin renunciar a una experiencia visual agradable, notificaciones en tiempo real y conexión con inteligencia artificial.
 
