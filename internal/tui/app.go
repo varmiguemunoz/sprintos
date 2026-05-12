@@ -20,6 +20,13 @@ const (
 	screenCreateOrg
 	screenCreateProject
 	screenOrgSettings
+	screenEditProject
+	screenTaskDetail
+	screenEditTask
+	screenCreateTask
+	screenInviteUser
+	screenMCPSetup
+	screenCreateComment
 )
 
 type NavigateMsg struct {
@@ -27,6 +34,8 @@ type NavigateMsg struct {
 	GothUser *goth.User
 	Project  domain.Project
 	Org      domain.Organization
+	Task     domain.Task
+	StateID  uint
 }
 
 type UserResolvedMsg struct {
@@ -44,7 +53,9 @@ type AppModel struct {
 	stateSvc     *app.StateService
 	taskSvc      *app.TaskService
 	teamSvc      *app.TeamService
-	currentUser  *domain.User
+	commentSvc    *app.CommentService
+	invitationSvc *app.InvitationService
+	currentUser   *domain.User
 	currentOrgID uint
 	currentOrg   *domain.Organization
 }
@@ -124,6 +135,63 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, settings.Init()
 			}
 
+		case screenEditProject:
+			edit := NewEditProjectModel(msg.Project, m.projectSvc)
+			m.currentModel = edit
+			m.activeScreen = screenEditProject
+			return m, edit.Init()
+
+		case screenTaskDetail:
+			detail := NewTaskDetailModel(msg.Task, msg.Project, m.taskSvc, m.commentSvc)
+			m.currentModel = detail
+			m.activeScreen = screenTaskDetail
+			return m, detail.Init()
+
+		case screenEditTask:
+			editTask := NewEditTaskModel(msg.Task, msg.Project, m.taskSvc)
+			m.currentModel = editTask
+			m.activeScreen = screenEditTask
+			return m, editTask.Init()
+
+		case screenCreateComment:
+			if m.currentUser != nil {
+				createComment := NewCreateCommentModel(
+					msg.Task,
+					msg.Project,
+					m.currentUser.ID,
+					m.commentSvc,
+				)
+				m.currentModel = createComment
+				m.activeScreen = screenCreateComment
+				return m, createComment.Init()
+			}
+
+		case screenMCPSetup:
+			setup := NewMCPSetupModel()
+			m.currentModel = setup
+			m.activeScreen = screenMCPSetup
+			return m, setup.Init()
+
+		case screenInviteUser:
+			if m.currentOrg != nil {
+				invite := NewInviteUserModel(*m.currentOrg, m.invitationSvc)
+				m.currentModel = invite
+				m.activeScreen = screenInviteUser
+				return m, invite.Init()
+			}
+
+		case screenCreateTask:
+			createTask := NewCreateTaskModel(
+				msg.StateID,
+				msg.Project.ID,
+				m.currentUser.ID,
+				msg.Project,
+				m.taskSvc,
+			)
+			m.currentModel = createTask
+			m.activeScreen = screenCreateTask
+			return m, createTask.Init()
+
 		case screenLogin:
 			_ = auth.ClearSession()
 			m.currentUser = nil
@@ -178,6 +246,8 @@ func Start(db *gorm.DB) error {
 	stateSvc := app.NewStateService(db)
 	taskSvc := app.NewTaskService(db)
 	teamSvc := app.NewTeamService(db)
+	commentSvc := app.NewCommentService(db)
+	invitationSvc := app.NewInvitationService(db)
 
 	startModel := tea.Model(NewLoginModel())
 	startOrgID := uint(0)
@@ -209,7 +279,9 @@ func Start(db *gorm.DB) error {
 		stateSvc:     stateSvc,
 		taskSvc:      taskSvc,
 		teamSvc:      teamSvc,
-		currentUser:  startUser,
+		commentSvc:    commentSvc,
+		invitationSvc: invitationSvc,
+		currentUser:   startUser,
 		currentOrgID: startOrgID,
 		currentOrg:   startOrg,
 	}

@@ -10,21 +10,33 @@ import (
 )
 
 type KanbanModel struct {
-	project    domain.Project
-	states     []domain.State
-	tasks      map[uint][]domain.Task
-	colCursor  int
-	taskCursor map[uint]int
-	loading    bool
-	err        error
-	stateSvc   *app.StateService
-	taskSvc    *app.TaskService
+	project      domain.Project
+	states       []domain.State
+	tasks        map[uint][]domain.Task
+	colCursor    int
+	taskCursor   map[uint]int
+	loading      bool
+	err          error
+	moving       bool
+	moveCursor   int
+	selectedTask *domain.Task
+	deleting     bool
+	stateSvc     *app.StateService
+	taskSvc      *app.TaskService
 }
 
 type KanbanLoadedMsg struct {
 	States []domain.State
 	Tasks  []domain.Task
 	Err    error
+}
+
+type TaskMovedMsg struct {
+	Err error
+}
+
+type TaskDeletedMsg struct {
+	Err error
 }
 
 func NewKanbanModel(project domain.Project, stateSvc *app.StateService, taskSvc *app.TaskService) KanbanModel {
@@ -52,6 +64,26 @@ func (m KanbanModel) loadDataCmd() tea.Cmd {
 	}
 }
 
+func (m KanbanModel) moveTaskCmd(taskID uint, newStateID uint) tea.Cmd {
+	return func() tea.Msg {
+		_, err := m.taskSvc.MoveState(taskID, newStateID)
+		if err != nil {
+			return TaskMovedMsg{Err: err}
+		}
+		return TaskMovedMsg{}
+	}
+}
+
+func (m KanbanModel) deleteTaskCmd(taskID uint) tea.Cmd {
+	return func() tea.Msg {
+		err := m.taskSvc.Delete(taskID)
+		if err != nil {
+			return TaskDeletedMsg{Err: err}
+		}
+		return TaskDeletedMsg{}
+	}
+}
+
 func (m KanbanModel) Init() tea.Cmd {
 	return m.loadDataCmd()
 }
@@ -66,13 +98,73 @@ func (m KanbanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.states = msg.States
+		m.tasks = make(map[uint][]domain.Task)
 		for _, task := range msg.Tasks {
 			m.tasks[task.StateID] = append(m.tasks[task.StateID], task)
 		}
 		m.loading = false
 		return m, nil
 
+	case TaskMovedMsg:
+		m.moving = false
+		m.selectedTask = nil
+		if msg.Err != nil {
+			m.err = msg.Err
+			return m, nil
+		}
+		m.loading = true
+		m.tasks = make(map[uint][]domain.Task)
+		return m, m.loadDataCmd()
+
+	case TaskDeletedMsg:
+		m.deleting = false
+		m.selectedTask = nil
+		if msg.Err != nil {
+			m.err = msg.Err
+			return m, nil
+		}
+		m.loading = true
+		m.tasks = make(map[uint][]domain.Task)
+		return m, m.loadDataCmd()
+
 	case tea.KeyMsg:
+		if m.deleting {
+			switch msg.String() {
+			case "y", "Y":
+				if m.selectedTask != nil {
+					taskID := m.selectedTask.ID
+					return m, m.deleteTaskCmd(taskID)
+				}
+			case "n", "N", "esc":
+				m.deleting = false
+				m.selectedTask = nil
+			}
+			return m, nil
+		}
+
+		if m.moving {
+			switch msg.String() {
+			case "up", "k":
+				if m.moveCursor > 0 {
+					m.moveCursor--
+				}
+			case "down", "j":
+				if m.moveCursor < len(m.states)-1 {
+					m.moveCursor++
+				}
+			case "enter":
+				if m.selectedTask != nil {
+					taskID := m.selectedTask.ID
+					newStateID := m.states[m.moveCursor].ID
+					return m, m.moveTaskCmd(taskID, newStateID)
+				}
+			case "esc":
+				m.moving = false
+				m.selectedTask = nil
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "left", "h":
 			if m.colCursor > 0 {
@@ -95,6 +187,47 @@ func (m KanbanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				tasks := m.tasks[stateID]
 				if m.taskCursor[stateID] < len(tasks)-1 {
 					m.taskCursor[stateID]++
+				}
+			}
+		case "m":
+			if len(m.states) > 0 {
+				stateID := m.states[m.colCursor].ID
+				tasks := m.tasks[stateID]
+				if len(tasks) > 0 {
+					task := tasks[m.taskCursor[stateID]]
+					m.selectedTask = &task
+					m.moveCursor = m.colCursor
+					m.moving = true
+				}
+			}
+		case "d":
+			if len(m.states) > 0 {
+				stateID := m.states[m.colCursor].ID
+				tasks := m.tasks[stateID]
+				if len(tasks) > 0 {
+					task := tasks[m.taskCursor[stateID]]
+					m.selectedTask = &task
+					m.deleting = true
+				}
+			}
+		case "n":
+			if len(m.states) > 0 {
+				stateID := m.states[m.colCursor].ID
+				project := m.project
+				return m, func() tea.Msg {
+					return NavigateMsg{To: screenCreateTask, StateID: stateID, Project: project}
+				}
+			}
+		case "enter":
+			if len(m.states) > 0 {
+				stateID := m.states[m.colCursor].ID
+				tasks := m.tasks[stateID]
+				if len(tasks) > 0 {
+					selected := tasks[m.taskCursor[stateID]]
+					project := m.project
+					return m, func() tea.Msg {
+						return NavigateMsg{To: screenTaskDetail, Task: selected, Project: project}
+					}
 				}
 			}
 		case "esc":
@@ -165,7 +298,26 @@ func (m KanbanModel) View() string {
 	}
 
 	board := lipgloss.JoinHorizontal(lipgloss.Top, columns...)
-	footer := normalStyle.Render("←/→ columns  •  ↑/↓ tasks  •  esc back  •  q quit")
+
+	var footer string
+
+	if m.deleting && m.selectedTask != nil {
+		footer = errorStyle.Render(fmt.Sprintf("Delete '%s'? This cannot be undone.", truncate(m.selectedTask.Title, 30))) + "\n"
+
+		footer += normalStyle.Render("y to confirm  •  n / esc to cancel")
+	} else if m.moving && m.selectedTask != nil {
+		footer = selectedStyle.Render(fmt.Sprintf("Move \"%s\" to:", truncate(m.selectedTask.Title, 30))) + "\n"
+		for i, state := range m.states {
+			if i == m.moveCursor {
+				footer += selectedStyle.Render(fmt.Sprintf("  > %s", state.Name)) + "\n"
+			} else {
+				footer += normalStyle.Render(fmt.Sprintf("    %s", state.Name)) + "\n"
+			}
+		}
+		footer += "\n" + normalStyle.Render("↑/↓ choose state  •  enter to confirm  •  esc to cancel")
+	} else {
+		footer = normalStyle.Render("←/→ columns  •  ↑/↓ tasks  •  enter view  •  m move  •  d delete  •  n new task  •  esc back  •  q quit")
+	}
 
 	return header + "\n\n" + board + "\n\n" + footer + "\n"
 }

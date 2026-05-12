@@ -78,3 +78,13 @@ type Comment struct {
 	AuthorID uint   `gorm:"not null"`
 	Author   User   `gorm:"foreignKey:AuthorID"`
 }
+
+type Invitation struct {
+	gorm.Model
+	Email          string       `gorm:"not null"`
+	OrganizationID uint         `gorm:"not null"`
+	Organization   Organization
+	Token          string       `gorm:"uniqueIndex;not null"`
+	ExpiresAt      time.Time    `gorm:"not null"`
+	AcceptedAt     *time.Time
+}

@@ -9,73 +9,67 @@ import (
 	"github.com/varmiguemunoz/command_pm_app/internal/domain"
 )
 
-type OrgSettingsModel struct {
-	inputs  []textinput.Model
-	focused int
-	loading bool
-	saved   bool
-	err     error
-	org     domain.Organization
-	orgSvc  *app.OrganizationService
+type EditProjectModel struct {
+	inputs     []textinput.Model
+	focused    int
+	loading    bool
+	saved      bool
+	err        error
+	project    domain.Project
+	projectSvc *app.ProjectService
 }
 
-type OrgSettingsSavedMsg struct {
+type ProjectUpdatedMsg struct {
 	Err error
 }
 
-func NewOrgSettingsModel(org domain.Organization, orgSvc *app.OrganizationService) OrgSettingsModel {
-	inputs := make([]textinput.Model, 3)
+func NewEditProjectModel(project domain.Project, projectSvc *app.ProjectService) EditProjectModel {
+	inputs := make([]textinput.Model, 2)
 
 	inputs[0] = textinput.New()
-	inputs[0].Placeholder = "Organization name"
+	inputs[0].Placeholder = "Project name"
 	inputs[0].CharLimit = 100
-	inputs[0].SetValue(org.Name)
+	inputs[0].SetValue(project.Name)
 	inputs[0].Focus()
 
 	inputs[1] = textinput.New()
 	inputs[1].Placeholder = "Description (optional)"
 	inputs[1].CharLimit = 200
-	if org.Description != nil {
-		inputs[1].SetValue(*org.Description)
+	if project.Description != nil {
+		inputs[1].SetValue(*project.Description)
 	}
 
-	inputs[2] = textinput.New()
-	inputs[2].Placeholder = "+1234567890"
-	inputs[2].CharLimit = 20
-	inputs[2].SetValue(org.WhatsappNumber)
-
-	return OrgSettingsModel{
-		inputs: inputs,
-		org:    org,
-		orgSvc: orgSvc,
+	return EditProjectModel{
+		inputs:     inputs,
+		project:    project,
+		projectSvc: projectSvc,
 	}
 }
 
-func (m OrgSettingsModel) saveCmd() tea.Cmd {
+func (m EditProjectModel) saveCmd() tea.Cmd {
 	return func() tea.Msg {
 		name := m.inputs[0].Value()
 		description := m.inputs[1].Value()
-		whatsapp := m.inputs[2].Value()
 
 		if name == "" {
-			return OrgSettingsSavedMsg{Err: fmt.Errorf("organization name is required")}
+			return ProjectUpdatedMsg{Err: fmt.Errorf("project name is required")}
 		}
 
-		_, err := m.orgSvc.Update(m.org.ID, name, description, whatsapp)
+		_, err := m.projectSvc.Update(m.project.ID, name, description)
 		if err != nil {
-			return OrgSettingsSavedMsg{Err: err}
+			return ProjectUpdatedMsg{Err: err}
 		}
 
-		return OrgSettingsSavedMsg{}
+		return ProjectUpdatedMsg{}
 	}
 }
 
-func (m OrgSettingsModel) Init() tea.Cmd {
+func (m EditProjectModel) Init() tea.Cmd {
 	return textinput.Blink
 }
 
-func (m OrgSettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if msg, ok := msg.(OrgSettingsSavedMsg); ok {
+func (m EditProjectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if msg, ok := msg.(ProjectUpdatedMsg); ok {
 		m.loading = false
 		if msg.Err != nil {
 			m.err = msg.Err
@@ -93,14 +87,6 @@ func (m OrgSettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "i":
-			return m, func() tea.Msg {
-				return NavigateMsg{To: screenInviteUser}
-			}
-		case "m":
-			return m, func() tea.Msg {
-				return NavigateMsg{To: screenMCPSetup}
-			}
 		case "esc":
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenDashboard}
@@ -128,10 +114,6 @@ func (m OrgSettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.inputs[m.focused].Blur()
 			m.focused++
 			m.inputs[m.focused].Focus()
-		case "L":
-			return m, func() tea.Msg {
-				return NavigateMsg{To: screenLogin}
-			}
 		}
 	}
 
@@ -140,15 +122,15 @@ func (m OrgSettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m OrgSettingsModel) View() string {
+func (m EditProjectModel) View() string {
 	if m.loading {
-		return titleStyle.Render("SprintOS — Organization Settings") +
+		return titleStyle.Render("SprintOS — Edit Project") +
 			"\n\n" + normalStyle.Render("Saving...") + "\n"
 	}
 
-	labels := []string{"Organization name *", "Description", "WhatsApp number"}
+	labels := []string{"Project name *", "Description"}
 
-	s := titleStyle.Render("SprintOS — Organization Settings") + "\n\n"
+	s := titleStyle.Render(fmt.Sprintf("SprintOS — Edit: %s", m.project.Name)) + "\n\n"
 
 	for i, label := range labels {
 		if i == m.focused {
@@ -164,9 +146,9 @@ func (m OrgSettingsModel) View() string {
 	}
 
 	if m.saved {
-		s += selectedStyle.Render("✓ Changes saved successfully") + "\n\n"
+		s += selectedStyle.Render("✓ Project updated successfully") + "\n\n"
 	}
 
-	s += normalStyle.Render("tab/↓ next field  •  shift+tab/↑ previous  •  enter to save  • L logout • esc back") + "\n"
+	s += normalStyle.Render("tab/↓ next field  •  shift+tab/↑ previous  •  enter to save  •  esc back") + "\n"
 	return s
 }

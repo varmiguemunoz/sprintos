@@ -58,11 +58,8 @@ func (m LoginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.cursor {
 			case 0:
 				m.loading = true
-				return m, startLoginCmd("google")
-			case 1:
-				m.loading = true
 				return m, startLoginCmd("github")
-			case 2:
+			case 1:
 				return m, tea.Quit
 			}
 		case "q", "ctrl+c":

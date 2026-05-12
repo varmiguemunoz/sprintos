@@ -24,6 +24,7 @@ func Connect(dbPath string) (*gorm.DB, error) {
 		&domain.State{},
 		&domain.Task{},
 		&domain.Comment{},
+		&domain.Invitation{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run migrations: %w", err)

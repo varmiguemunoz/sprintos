@@ -71,6 +71,13 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return NavigateMsg{To: screenKanban, Project: selected}
 				}
 			}
+		case "e":
+			if len(m.projects) > 0 {
+				selected := m.projects[m.cursor]
+				return m, func() tea.Msg {
+					return NavigateMsg{To: screenEditProject, Project: selected}
+				}
+			}
 		case "n":
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenCreateProject}
@@ -115,6 +122,6 @@ func (m DashboardModel) View() string {
 		}
 	}
 
-	s += "\n" + normalStyle.Render("↑/↓ move  •  enter open  •  n new project  •  s settings  •  L logout  •  q quit") + "\n"
+	s += "\n" + normalStyle.Render("↑/↓ move  •  enter open  •  e edit  •  n new project  •  s settings  •  L logout  •  q quit") + "\n"
 	return s
 }
