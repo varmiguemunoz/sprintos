@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/markbates/goth"
+	"github.com/varmiguemunoz/command_pm_app/internal/domain"
 	"github.com/varmiguemunoz/command_pm_app/internal/infrastructure/auth"
 )
 
@@ -22,7 +23,7 @@ type LoginResultMsg struct {
 
 func NewLoginModel() LoginModel {
 	return LoginModel{
-		choices: []string{"Login with Google", "Login with GitHub", "Exit"},
+		choices: []string{"Login with GitHub", "Exit"},
 	}
 }
 
@@ -33,12 +34,10 @@ func startLoginCmd(provider string) tea.Cmd {
 	}
 }
 
-// Init Function
 func (m LoginModel) Init() tea.Cmd {
 	return nil
 }
 
-// Update screens
 func (m LoginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
@@ -76,22 +75,30 @@ func (m LoginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = false
 			return m, nil
 		}
-		return m, tea.Quit
+		_ = auth.SaveSession(&domain.User{
+			Name:       msg.User.Name,
+			Email:      msg.User.Email,
+			Provider:   msg.User.Provider,
+			ProviderID: msg.User.UserID,
+		})
+		gothUser := msg.User
+		return m, func() tea.Msg {
+			return NavigateMsg{To: screenDashboard, GothUser: &gothUser}
+		}
 	}
 
 	return m, nil
 }
 
-// View function
 func (m LoginModel) View() string {
 	if m.loading {
-		return titleStyle.Render("CommandPM") +
+		return titleStyle.Render("SprintOS") +
 			"\n\n" +
 			normalStyle.Render("Opening browser... complete the login and come back.") +
 			"\n"
 	}
 
-	s := titleStyle.Render("CommandPM") + "\n\n"
+	s := titleStyle.Render("SprintOS") + "\n\n"
 	s += normalStyle.Render("Welcome! Please choose how to log in:") + "\n\n"
 
 	for i, choice := range m.choices {

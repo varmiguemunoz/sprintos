@@ -12,7 +12,7 @@ var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Launch the CommandPM terminal UI",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := tui.Start(); err != nil {
+		if err := tui.Start(DB); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return err
 		}
