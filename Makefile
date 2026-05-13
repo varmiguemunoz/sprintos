@@ -1,27 +1,29 @@
-# CommandPM — Makefile
-# Usage: make <command>
+.PHONY: fmt lint build build-prod run tidy check
 
-.PHONY: fmt lint build run tidy check
-
-## fmt: Format all Go files in place
 fmt:
 	gofmt -w .
 
-## lint: Run the linter
 lint:
 	golangci-lint run ./...
 
-## build: Compile the binary
 build:
-	go build -o bin/commandpm .
+	go build -o bin/sprintos .
 
-## run: Run the app directly (no binary)
+build-prod:
+	go build -ldflags "\
+		-X github.com/varmiguemunoz/command_pm_app/internal/config.DatabaseURL=$(DATABASE_URL) \
+		-X github.com/varmiguemunoz/command_pm_app/internal/config.GitHubClientID=$(GITHUB_CLIENT_ID) \
+		-X github.com/varmiguemunoz/command_pm_app/internal/config.GitHubClientSecret=$(GITHUB_CLIENT_SECRET) \
+		-X github.com/varmiguemunoz/command_pm_app/internal/config.SMTPHost=$(SMTP_HOST) \
+		-X github.com/varmiguemunoz/command_pm_app/internal/config.SMTPPort=$(SMTP_PORT) \
+		-X github.com/varmiguemunoz/command_pm_app/internal/config.SMTPFrom=$(SMTP_FROM) \
+		-X github.com/varmiguemunoz/command_pm_app/internal/config.SMTPPassword=$(SMTP_PASSWORD)" \
+		-o bin/sprintos .
+
 run:
-	go run main.go
+	go run main.go start
 
-## tidy: Clean up go.mod and go.sum
 tidy:
 	go mod tidy
 
-## check: Format + lint + build in one shot (run this before committing)
 check: fmt lint build

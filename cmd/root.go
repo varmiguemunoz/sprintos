@@ -6,7 +6,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	"github.com/varmiguemunoz/command_pm_app/internal/config"
 	"github.com/varmiguemunoz/command_pm_app/internal/infrastructure/db"
 	"gorm.io/gorm"
 )
@@ -14,24 +14,17 @@ import (
 var DB *gorm.DB
 
 var rootCmd = &cobra.Command{
-	Use:   "commandpm",
-	Short: "CommandPM — project manager for your terminal",
+	Use:   "sprintos",
+	Short: "SprintOS — project manager for your terminal",
 	Long:  `A fast, keyboard-driven project and task manager that lives entirely in your terminal.`,
 
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Read the config.yaml file
-		if err := viper.ReadInConfig(); err != nil {
-			return fmt.Errorf("could not read config file: %w", err)
+		databaseURL := config.GetDatabaseURL()
+		if databaseURL == "" {
+			return fmt.Errorf("database URL is not configured")
 		}
 
-		// Get the database path from config.yaml
-		dbPath := viper.GetString("database.path")
-		if dbPath == "" {
-			return fmt.Errorf("database.path is not set in config.yaml")
-		}
-
-		// Open the database and run AutoMigrate
-		conn, err := db.Connect(dbPath)
+		conn, err := db.Connect(databaseURL)
 		if err != nil {
 			return fmt.Errorf("could not connect to database: %w", err)
 		}
@@ -54,8 +47,4 @@ func Execute() {
 
 func init() {
 	_ = godotenv.Load()
-	viper.AutomaticEnv()
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(".")
 }

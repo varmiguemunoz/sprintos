@@ -1,0 +1,198 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Build all platforms
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GITHUB_CLIENT_ID: ${{ secrets.OAUTH_GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_GITHUB_CLIENT_SECRET }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: |
+          LDFLAGS="-s -w \
+            -X github.com/varmiguemunoz/command_pm_app/internal/config.DatabaseURL=${DATABASE_URL} \
+            -X github.com/varmiguemunoz/command_pm_app/internal/config.GitHubClientID=${GITHUB_CLIENT_ID} \
+            -X github.com/varmiguemunoz/command_pm_app/internal/config.GitHubClientSecret=${GITHUB_CLIENT_SECRET} \
+            -X github.com/varmiguemunoz/command_pm_app/internal/config.SMTPHost=${SMTP_HOST} \
+            -X github.com/varmiguemunoz/command_pm_app/internal/config.SMTPPort=${SMTP_PORT} \
+            -X github.com/varmiguemunoz/command_pm_app/internal/config.SMTPFrom=${SMTP_FROM} \
+            -X github.com/varmiguemunoz/command_pm_app/internal/config.SMTPPassword=${SMTP_PASSWORD}"
+
+          mkdir -p dist
+
+          GOOS=darwin  GOARCH=amd64  go build -ldflags "$LDFLAGS" -o dist/sprintos-darwin-amd64     .
+          GOOS=darwin  GOARCH=arm64  go build -ldflags "$LDFLAGS" -o dist/sprintos-darwin-arm64     .
+          GOOS=linux   GOARCH=amd64  go build -ldflags "$LDFLAGS" -o dist/sprintos-linux-amd64      .
+          GOOS=linux   GOARCH=arm64  go build -ldflags "$LDFLAGS" -o dist/sprintos-linux-arm64      .
+          GOOS=windows GOARCH=amd64  go build -ldflags "$LDFLAGS" -o dist/sprintos-windows-amd64.exe .
+
+      - name: Calculate SHA256 checksums
+        id: sha
+        run: |
+          cd dist
+          sha256sum sprintos-darwin-amd64      > sprintos-darwin-amd64.sha256
+          sha256sum sprintos-darwin-arm64      > sprintos-darwin-arm64.sha256
+          sha256sum sprintos-linux-amd64       > sprintos-linux-amd64.sha256
+          sha256sum sprintos-linux-arm64       > sprintos-linux-arm64.sha256
+          sha256sum sprintos-windows-amd64.exe > sprintos-windows-amd64.exe.sha256
+
+          echo "SHA_DARWIN_AMD64=$(sha256sum sprintos-darwin-amd64 | awk '{print $1}')"      >> $GITHUB_OUTPUT
+          echo "SHA_DARWIN_ARM64=$(sha256sum sprintos-darwin-arm64 | awk '{print $1}')"      >> $GITHUB_OUTPUT
+          echo "SHA_LINUX_AMD64=$(sha256sum sprintos-linux-amd64 | awk '{print $1}')"        >> $GITHUB_OUTPUT
+          echo "SHA_LINUX_ARM64=$(sha256sum sprintos-linux-arm64 | awk '{print $1}')"        >> $GITHUB_OUTPUT
+          echo "SHA_WINDOWS_AMD64=$(sha256sum sprintos-windows-amd64.exe | awk '{print $1}')" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: SprintOS ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## Install SprintOS ${{ steps.version.outputs.VERSION }}
+
+            ### macOS
+            ```bash
+            brew install varmiguemunoz/sprintos/sprintos
+            ```
+
+            ### Windows
+            ```powershell
+            scoop bucket add sprintos https://github.com/varmiguemunoz/scoop-sprintos
+            scoop install sprintos
+            ```
+
+            ### Linux
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/varmiguemunoz/sprintos/main/install.sh | sh
+            ```
+
+            ### Manual download
+            Pick the binary for your platform below.
+          files: |
+            dist/sprintos-darwin-amd64
+            dist/sprintos-darwin-amd64.sha256
+            dist/sprintos-darwin-arm64
+            dist/sprintos-darwin-arm64.sha256
+            dist/sprintos-linux-amd64
+            dist/sprintos-linux-amd64.sha256
+            dist/sprintos-linux-arm64
+            dist/sprintos-linux-arm64.sha256
+            dist/sprintos-windows-amd64.exe
+            dist/sprintos-windows-amd64.exe.sha256
+
+      - name: Update Homebrew formula
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          SHA_AMD64=${{ steps.sha.outputs.SHA_DARWIN_AMD64 }}
+          SHA_ARM64=${{ steps.sha.outputs.SHA_DARWIN_ARM64 }}
+          REPO="varmiguemunoz/homebrew-sprintos"
+          BASE_URL="https://github.com/varmiguemunoz/sprintos/releases/download/${VERSION}"
+
+          FORMULA=$(cat <<FORMULA
+          class Sprintos < Formula
+            desc "A fast, keyboard-driven project manager for your terminal"
+            homepage "https://github.com/varmiguemunoz/sprintos"
+            version "${VERSION#v}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "${BASE_URL}/sprintos-darwin-arm64"
+                sha256 "${SHA_ARM64}"
+              else
+                url "${BASE_URL}/sprintos-darwin-amd64"
+                sha256 "${SHA_AMD64}"
+              end
+            end
+
+            def install
+              if Hardware::CPU.arm?
+                bin.install "sprintos-darwin-arm64" => "sprintos"
+              else
+                bin.install "sprintos-darwin-amd64" => "sprintos"
+              end
+            end
+
+            test do
+              system "#{bin}/sprintos", "--help"
+            end
+          end
+          FORMULA
+          )
+
+          git clone https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${REPO}.git tap-repo
+          echo "$FORMULA" > tap-repo/Formula/sprintos.rb
+          cd tap-repo
+          git config user.email "github-actions@github.com"
+          git config user.name "GitHub Actions"
+          git add Formula/sprintos.rb
+          git commit -m "Update sprintos to ${VERSION}"
+          git push
+
+      - name: Update Scoop manifest
+        env:
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          SHA=${{ steps.sha.outputs.SHA_WINDOWS_AMD64 }}
+          REPO="varmiguemunoz/scoop-sprintos"
+          BASE_URL="https://github.com/varmiguemunoz/sprintos/releases/download/${VERSION}"
+
+          MANIFEST=$(cat <<JSON
+          {
+            "version": "${VERSION#v}",
+            "description": "A fast, keyboard-driven project manager for your terminal",
+            "homepage": "https://github.com/varmiguemunoz/sprintos",
+            "license": "MIT",
+            "url": "${BASE_URL}/sprintos-windows-amd64.exe",
+            "hash": "${SHA}",
+            "bin": [["sprintos-windows-amd64.exe", "sprintos"]],
+            "checkver": {
+              "github": "https://github.com/varmiguemunoz/sprintos"
+            },
+            "autoupdate": {
+              "url": "https://github.com/varmiguemunoz/sprintos/releases/download/v\$version/sprintos-windows-amd64.exe",
+              "hash": {
+                "url": "\$url.sha256"
+              }
+            }
+          }
+          JSON
+          )
+
+          git clone https://x-access-token:${SCOOP_BUCKET_TOKEN}@github.com/${REPO}.git scoop-repo
+          echo "$MANIFEST" > scoop-repo/bucket/sprintos.json
+          cd scoop-repo
+          git config user.email "github-actions@github.com"
+          git config user.name "GitHub Actions"
+          git add bucket/sprintos.json
+          git commit -m "Update sprintos to ${VERSION}"
+          git push

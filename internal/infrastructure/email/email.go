@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"net/smtp"
 
-	"github.com/spf13/viper"
+	"github.com/varmiguemunoz/command_pm_app/internal/config"
 )
 
 func SendInvitation(toEmail, orgName, token string) error {
-	host := viper.GetString("smtp.host")
-	port := viper.GetString("smtp.port")
-	from := viper.GetString("smtp.from")
-	password := viper.GetString("SMTP_PASSWORD")
+	host := config.GetSMTPHost()
+	port := config.GetSMTPPort()
+	from := config.GetSMTPFrom()
+	password := config.GetSMTPPassword()
 
 	subject := fmt.Sprintf("You've been invited to join %s on SprintOS", orgName)
 	body := fmt.Sprintf(`Hi!
@@ -20,7 +20,7 @@ You've been invited to join "%s" on SprintOS, a terminal-based project manager.
 
 To accept this invitation, run the following command in your terminal:
 
-  commandpm join --token %s
+  sprintos join --token %s
 
 This invitation expires in 7 days.
 `, orgName, token)

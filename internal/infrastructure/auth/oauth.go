@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"os/exec"
 	"runtime"
 
 	"github.com/markbates/goth"
 	githubProvider "github.com/markbates/goth/providers/github"
-	googleProvider "github.com/markbates/goth/providers/google"
-	"github.com/spf13/viper"
+	"github.com/varmiguemunoz/command_pm_app/internal/config"
 )
 
 type authResult struct {
@@ -20,26 +18,18 @@ type authResult struct {
 }
 
 func SetupProviders() {
-	port := viper.GetString("auth.callback_port")
-	base := fmt.Sprintf("http://localhost:%s/auth", port)
+	callbackURL := "http://localhost:8080/auth/github/callback"
 
 	goth.UseProviders(
 		githubProvider.New(
-			os.Getenv("GITHUB_CLIENT_ID"),
-			os.Getenv("GITHUB_CLIENT_SECRET"),
-			base+"/github/callback",
-		),
-		googleProvider.New(
-			os.Getenv("GOOGLE_CLIENT_ID"),
-			os.Getenv("GOOGLE_CLIENT_SECRET"),
-			base+"/google/callback",
-			"email", "profile",
+			config.GetGitHubClientID(),
+			config.GetGitHubClientSecret(),
+			callbackURL,
 		),
 	)
 }
 
 func StartLogin(providerName string) (goth.User, error) {
-	port := viper.GetString("auth.callback_port")
 	result := make(chan authResult, 1)
 
 	var gothSession goth.Session
@@ -94,7 +84,7 @@ func StartLogin(providerName string) (goth.User, error) {
 	})
 
 	server := &http.Server{
-		Addr:    ":" + port,
+		Addr:    ":8080",
 		Handler: mux,
 	}
 
@@ -102,8 +92,7 @@ func StartLogin(providerName string) (goth.User, error) {
 		_ = server.ListenAndServe()
 	}()
 
-	loginURL := fmt.Sprintf("http://localhost:%s/auth/%s", port, providerName)
-	openBrowser(loginURL)
+	openBrowser("http://localhost:8080/auth/" + providerName)
 
 	res := <-result
 
