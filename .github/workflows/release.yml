@@ -20,13 +20,13 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: 'stable'
 
       - name: Get version from tag
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Build all platforms
+      - name: Inject config values
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GITHUB_CLIENT_ID: ${{ secrets.OAUTH_GITHUB_CLIENT_ID }}
@@ -36,24 +36,90 @@ jobs:
           SMTP_FROM: ${{ secrets.SMTP_FROM }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: |
-          PKG="github.com/varmiguemunoz/sprintos/internal/config"
+          python3 - << 'PYEOF'
+          import os
 
-          LDFLAGS="-s -w"
-          LDFLAGS="$LDFLAGS -X ${PKG}.DatabaseURL=${DATABASE_URL}"
-          LDFLAGS="$LDFLAGS -X ${PKG}.GitHubClientID=${GITHUB_CLIENT_ID}"
-          LDFLAGS="$LDFLAGS -X ${PKG}.GitHubClientSecret=${GITHUB_CLIENT_SECRET}"
-          LDFLAGS="$LDFLAGS -X ${PKG}.SMTPHost=${SMTP_HOST}"
-          LDFLAGS="$LDFLAGS -X ${PKG}.SMTPPort=${SMTP_PORT}"
-          LDFLAGS="$LDFLAGS -X ${PKG}.SMTPFrom=${SMTP_FROM}"
-          LDFLAGS="$LDFLAGS -X ${PKG}.SMTPPassword=${SMTP_PASSWORD}"
+          def esc(v):
+              return v.replace('\\', '\\\\').replace('"', '\\"')
 
+          content = f'''package config
+
+          import "os"
+
+          var (
+              DatabaseURL        = "{esc(os.environ.get('DATABASE_URL', ''))}"
+              GitHubClientID     = "{esc(os.environ.get('GITHUB_CLIENT_ID', ''))}"
+              GitHubClientSecret = "{esc(os.environ.get('GITHUB_CLIENT_SECRET', ''))}"
+              SMTPHost           = "{esc(os.environ.get('SMTP_HOST', ''))}"
+              SMTPPort           = "{esc(os.environ.get('SMTP_PORT', ''))}"
+              SMTPFrom           = "{esc(os.environ.get('SMTP_FROM', ''))}"
+              SMTPPassword       = "{esc(os.environ.get('SMTP_PASSWORD', ''))}"
+          )
+
+          func GetDatabaseURL() string {{
+              if DatabaseURL != "" {{
+                  return DatabaseURL
+              }}
+              return os.Getenv("DATABASE_URL")
+          }}
+
+          func GetGitHubClientID() string {{
+              if GitHubClientID != "" {{
+                  return GitHubClientID
+              }}
+              return os.Getenv("GITHUB_CLIENT_ID")
+          }}
+
+          func GetGitHubClientSecret() string {{
+              if GitHubClientSecret != "" {{
+                  return GitHubClientSecret
+              }}
+              return os.Getenv("GITHUB_CLIENT_SECRET")
+          }}
+
+          func GetSMTPHost() string {{
+              if SMTPHost != "" {{
+                  return SMTPHost
+              }}
+              return os.Getenv("SMTP_HOST")
+          }}
+
+          func GetSMTPPort() string {{
+              if SMTPPort != "" {{
+                  return SMTPPort
+              }}
+              return os.Getenv("SMTP_PORT")
+          }}
+
+          func GetSMTPFrom() string {{
+              if SMTPFrom != "" {{
+                  return SMTPFrom
+              }}
+              return os.Getenv("SMTP_FROM")
+          }}
+
+          func GetSMTPPassword() string {{
+              if SMTPPassword != "" {{
+                  return SMTPPassword
+              }}
+              return os.Getenv("SMTP_PASSWORD")
+          }}
+          '''
+
+          with open('internal/config/config.go', 'w') as f:
+              f.write(content)
+
+          print("Config file generated successfully.")
+          PYEOF
+
+      - name: Build all platforms
+        run: |
           mkdir -p dist
-
-          CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64  go build -ldflags "$LDFLAGS" -o dist/sprintos-darwin-amd64     .
-          CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64  go build -ldflags "$LDFLAGS" -o dist/sprintos-darwin-arm64     .
-          CGO_ENABLED=0 GOOS=linux   GOARCH=amd64  go build -ldflags "$LDFLAGS" -o dist/sprintos-linux-amd64      .
-          CGO_ENABLED=0 GOOS=linux   GOARCH=arm64  go build -ldflags "$LDFLAGS" -o dist/sprintos-linux-arm64      .
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64  go build -ldflags "$LDFLAGS" -o dist/sprintos-windows-amd64.exe .
+          CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64  go build -o dist/sprintos-darwin-amd64     .
+          CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64  go build -o dist/sprintos-darwin-arm64     .
+          CGO_ENABLED=0 GOOS=linux   GOARCH=amd64  go build -o dist/sprintos-linux-amd64      .
+          CGO_ENABLED=0 GOOS=linux   GOARCH=arm64  go build -o dist/sprintos-linux-arm64      .
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64  go build -o dist/sprintos-windows-amd64.exe .
 
       - name: Calculate SHA256 checksums
         id: sha
@@ -163,23 +229,22 @@ jobs:
           SHA=${{ steps.sha.outputs.SHA_WINDOWS_AMD64 }}
           BASE_URL="https://github.com/varmiguemunoz/sprintos/releases/download/${VERSION}"
 
-          cat > /tmp/sprintos.json << JSON
-          {
-            "version": "${VERSION#v}",
-            "description": "A fast, keyboard-driven project manager for your terminal",
-            "homepage": "https://github.com/varmiguemunoz/sprintos",
-            "license": "MIT",
-            "url": "${BASE_URL}/sprintos-windows-amd64.exe",
-            "hash": "${SHA}",
-            "bin": [["sprintos-windows-amd64.exe", "sprintos"]],
-            "checkver": {
-              "github": "https://github.com/varmiguemunoz/sprintos"
-            },
-            "autoupdate": {
-              "url": "https://github.com/varmiguemunoz/sprintos/releases/download/v\$version/sprintos-windows-amd64.exe"
-            }
+          python3 -c "
+          import json
+          version = '${VERSION}'.lstrip('v')
+          manifest = {
+              'version': version,
+              'description': 'A fast, keyboard-driven project manager for your terminal',
+              'homepage': 'https://github.com/varmiguemunoz/sprintos',
+              'license': 'MIT',
+              'url': f'${BASE_URL}/sprintos-windows-amd64.exe',
+              'hash': '${SHA}',
+              'bin': [['sprintos-windows-amd64.exe', 'sprintos']],
+              'checkver': {'github': 'https://github.com/varmiguemunoz/sprintos'},
+              'autoupdate': {'url': 'https://github.com/varmiguemunoz/sprintos/releases/download/v\$version/sprintos-windows-amd64.exe'}
           }
-          JSON
+          print(json.dumps(manifest, indent=2))
+          " > /tmp/sprintos.json
 
           git clone https://x-access-token:${SCOOP_BUCKET_TOKEN}@github.com/varmiguemunoz/scoop-sprintos.git scoop-repo
           mkdir -p scoop-repo/bucket
