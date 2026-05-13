@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/varmiguemunoz/command_pm_app/internal/tui"
+	"github.com/varmiguemunoz/sprintos/internal/tui"
 )
 
 var startCmd = &cobra.Command{

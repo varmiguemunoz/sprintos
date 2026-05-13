@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/varmiguemunoz/command_pm_app/internal/domain"
+	"github.com/varmiguemunoz/sprintos/internal/domain"
 	"gorm.io/gorm"
 )
 
@@ -13,12 +13,10 @@ type TaskService struct {
 	db *gorm.DB
 }
 
-// Constructor.
 func NewTaskService(db *gorm.DB) *TaskService {
 	return &TaskService{db: db}
 }
 
-// Create creates a new task inside a project.
 func (s *TaskService) Create(
 	title string,
 	description string,
@@ -47,7 +45,6 @@ func (s *TaskService) Create(
 	return &task, nil
 }
 
-// Update updates the editable fields of a task.
 func (s *TaskService) Update(
 	id uint,
 	title string,
@@ -80,7 +77,6 @@ func (s *TaskService) Update(
 	return &task, nil
 }
 
-// Delete soft-deletes a task by its primary key.
 func (s *TaskService) Delete(id uint) error {
 	var task domain.Task
 
@@ -98,7 +94,6 @@ func (s *TaskService) Delete(id uint) error {
 	return nil
 }
 
-// GetByID fetches a task by its primary key, preloading related data.
 func (s *TaskService) GetByID(id uint) (*domain.Task, error) {
 	var task domain.Task
 
@@ -118,7 +113,6 @@ func (s *TaskService) GetByID(id uint) (*domain.Task, error) {
 	return &task, nil
 }
 
-// ListByProject returns all tasks for a project.
 func (s *TaskService) ListByProject(projectID uint) ([]domain.Task, error) {
 	var tasks []domain.Task
 
@@ -133,7 +127,6 @@ func (s *TaskService) ListByProject(projectID uint) ([]domain.Task, error) {
 	return tasks, nil
 }
 
-// ListByState returns all tasks that are currently in a given state.
 func (s *TaskService) ListByState(stateID uint) ([]domain.Task, error) {
 	var tasks []domain.Task
 
@@ -144,11 +137,6 @@ func (s *TaskService) ListByState(stateID uint) ([]domain.Task, error) {
 	return tasks, nil
 }
 
-// MoveState moves a task to a new state.
-// If the new state has is_done = true, it stamps CompletedAt with the current time.
-// If the new state has is_done = false, it clears CompletedAt.
-// The WhatsApp notification is triggered by the caller after this returns,
-// using the returned task and the state's IsDone flag.
 func (s *TaskService) MoveState(taskID uint, newStateID uint) (*domain.Task, error) {
 	var task domain.Task
 	var newState domain.State
@@ -172,7 +160,6 @@ func (s *TaskService) MoveState(taskID uint, newStateID uint) (*domain.Task, err
 		"completed_at": nil,
 	}
 
-	// If moving to a "done" state, stamp the completion time.
 	if newState.IsDone {
 		now := time.Now()
 		updates["completed_at"] = now
@@ -187,8 +174,6 @@ func (s *TaskService) MoveState(taskID uint, newStateID uint) (*domain.Task, err
 	return &task, nil
 }
 
-// AssignUser assigns or unassigns a user to a task.
-// Pass nil to unassign.
 func (s *TaskService) AssignUser(taskID uint, userID *uint) (*domain.Task, error) {
 	var task domain.Task
 

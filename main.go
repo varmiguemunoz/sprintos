@@ -1,6 +1,6 @@
 package main
 
-import "github.com/varmiguemunoz/command_pm_app/cmd"
+import "github.com/varmiguemunoz/sprintos/cmd"
 
 func main() {
 	cmd.Execute()

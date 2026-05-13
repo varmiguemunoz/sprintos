@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/varmiguemunoz/command_pm_app/internal/domain"
+	"github.com/varmiguemunoz/sprintos/internal/domain"
 	"gorm.io/gorm"
 )
 
@@ -12,12 +12,10 @@ type CommentService struct {
 	db *gorm.DB
 }
 
-// Constructor.
 func NewCommentService(db *gorm.DB) *CommentService {
 	return &CommentService{db: db}
 }
 
-// Create adds a new comment to a task.
 func (s *CommentService) Create(content string, taskID uint, authorID uint) (*domain.Comment, error) {
 	comment := domain.Comment{
 		Content:  content,
@@ -32,8 +30,6 @@ func (s *CommentService) Create(content string, taskID uint, authorID uint) (*do
 	return &comment, nil
 }
 
-// ListByTask returns all comments for a task, ordered by creation time.
-// Preloads the Author so callers can display the commenter's name directly.
 func (s *CommentService) ListByTask(taskID uint) ([]domain.Comment, error) {
 	var comments []domain.Comment
 

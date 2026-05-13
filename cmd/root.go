@@ -6,8 +6,8 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
-	"github.com/varmiguemunoz/command_pm_app/internal/config"
-	"github.com/varmiguemunoz/command_pm_app/internal/infrastructure/db"
+	"github.com/varmiguemunoz/sprintos/internal/config"
+	"github.com/varmiguemunoz/sprintos/internal/infrastructure/db"
 	"gorm.io/gorm"
 )
 

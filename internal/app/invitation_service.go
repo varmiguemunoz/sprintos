@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/varmiguemunoz/command_pm_app/internal/domain"
+	"github.com/varmiguemunoz/sprintos/internal/domain"
 	"gorm.io/gorm"
 )
 

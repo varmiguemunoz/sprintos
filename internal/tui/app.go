@@ -5,9 +5,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/markbates/goth"
-	"github.com/varmiguemunoz/command_pm_app/internal/app"
-	"github.com/varmiguemunoz/command_pm_app/internal/domain"
-	"github.com/varmiguemunoz/command_pm_app/internal/infrastructure/auth"
+	"github.com/varmiguemunoz/sprintos/internal/app"
+	"github.com/varmiguemunoz/sprintos/internal/domain"
+	"github.com/varmiguemunoz/sprintos/internal/infrastructure/auth"
 	"gorm.io/gorm"
 )
 

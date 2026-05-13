@@ -3,7 +3,7 @@ package db
 import (
 	"fmt"
 
-	"github.com/varmiguemunoz/command_pm_app/internal/domain"
+	"github.com/varmiguemunoz/sprintos/internal/domain"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

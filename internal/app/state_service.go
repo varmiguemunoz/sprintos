@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/varmiguemunoz/command_pm_app/internal/domain"
+	"github.com/varmiguemunoz/sprintos/internal/domain"
 	"gorm.io/gorm"
 )
 
@@ -25,8 +25,6 @@ type stateTemplate struct {
 	IsDone   bool
 }
 
-// templates is the catalog of available templates.
-// To add a new template in the future, just add a new entry here.
 var templates = map[string][]stateTemplate{
 	"standard": {
 		{Name: "Backlog", Color: "#6B7280", Position: 1, IsDone: false},
@@ -53,7 +51,6 @@ func ListTemplates() []TemplatePreview {
 	}
 }
 
-// ApplyTemplate creates all the states from a named template for a given project.
 func (s *StateService) ApplyTemplate(projectID uint, templateName string) error {
 	tmpl, ok := templates[templateName]
 	if !ok {
@@ -76,7 +73,6 @@ func (s *StateService) ApplyTemplate(projectID uint, templateName string) error 
 	return nil
 }
 
-// Create creates a single custom state for a project.
 func (s *StateService) Create(
 	name string,
 	color string,
@@ -99,7 +95,6 @@ func (s *StateService) Create(
 	return &state, nil
 }
 
-// Update updates the name, color, position, and isDone flag of a state.
 func (s *StateService) Update(
 	id uint,
 	name string,
@@ -130,7 +125,6 @@ func (s *StateService) Update(
 	return &state, nil
 }
 
-// Delete soft-deletes a state by its primary key.
 func (s *StateService) Delete(id uint) error {
 	var state domain.State
 
@@ -148,7 +142,6 @@ func (s *StateService) Delete(id uint) error {
 	return nil
 }
 
-// GetByID fetches a state by its primary key.
 func (s *StateService) GetByID(id uint) (*domain.State, error) {
 	var state domain.State
 
@@ -162,7 +155,6 @@ func (s *StateService) GetByID(id uint) (*domain.State, error) {
 	return &state, nil
 }
 
-// ListByProject returns all states for a project, ordered by position.
 func (s *StateService) ListByProject(projectID uint) ([]domain.State, error) {
 	var states []domain.State
 

@@ -9,7 +9,7 @@ import (
 
 	"github.com/markbates/goth"
 	githubProvider "github.com/markbates/goth/providers/github"
-	"github.com/varmiguemunoz/command_pm_app/internal/config"
+	"github.com/varmiguemunoz/sprintos/internal/config"
 )
 
 type authResult struct {

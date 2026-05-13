@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	sprintosmcp "github.com/varmiguemunoz/command_pm_app/mcp"
+	sprintosmcp "github.com/varmiguemunoz/sprintos/mcp"
 )
 
 var mcpCmd = &cobra.Command{

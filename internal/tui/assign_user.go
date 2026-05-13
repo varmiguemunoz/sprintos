@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/varmiguemunoz/command_pm_app/internal/app"
-	"github.com/varmiguemunoz/command_pm_app/internal/domain"
+	"github.com/varmiguemunoz/sprintos/internal/app"
+	"github.com/varmiguemunoz/sprintos/internal/domain"
 )
 
 type AssignUserModel struct {

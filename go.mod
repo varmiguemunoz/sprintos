@@ -1,4 +1,4 @@
-module github.com/varmiguemunoz/command_pm_app
+module github.com/varmiguemunoz/sprintos
 
 go 1.25.7
 

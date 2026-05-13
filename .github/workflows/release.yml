@@ -36,7 +36,7 @@ jobs:
           SMTP_FROM: ${{ secrets.SMTP_FROM }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: |
-          PKG="github.com/varmiguemunoz/command_pm_app/internal/config"
+          PKG="github.com/varmiguemunoz/sprintos/internal/config"
 
           LDFLAGS="-s -w"
           LDFLAGS="$LDFLAGS -X ${PKG}.DatabaseURL=${DATABASE_URL}"

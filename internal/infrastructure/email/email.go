@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/smtp"
 
-	"github.com/varmiguemunoz/command_pm_app/internal/config"
+	"github.com/varmiguemunoz/sprintos/internal/config"
 )
 
 func SendInvitation(toEmail, orgName, token string) error {

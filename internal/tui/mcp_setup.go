@@ -5,7 +5,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/varmiguemunoz/command_pm_app/internal/infrastructure/mcpdetector"
+	"github.com/varmiguemunoz/sprintos/internal/infrastructure/mcpdetector"
 )
 
 type MCPSetupModel struct {

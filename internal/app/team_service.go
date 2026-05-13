@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/varmiguemunoz/command_pm_app/internal/domain"
+	"github.com/varmiguemunoz/sprintos/internal/domain"
 	"gorm.io/gorm"
 )
 
@@ -12,15 +12,11 @@ type TeamService struct {
 	db *gorm.DB
 }
 
-// Constructor.
 func NewTeamService(db *gorm.DB) *TeamService {
 	return &TeamService{db: db}
 }
 
-// AddMember adds a user to an organization with a given role.
-// Returns an error if the user is already a member.
 func (s *TeamService) AddMember(userID, organizationID uint, role string) (*domain.TeamMember, error) {
-	// Check the user is not already a member of this organization.
 	var existing domain.TeamMember
 	result := s.db.Where("user_id = ? AND organization_id = ?", userID, organizationID).First(&existing)
 	if result.Error == nil {
@@ -43,7 +39,6 @@ func (s *TeamService) AddMember(userID, organizationID uint, role string) (*doma
 	return &member, nil
 }
 
-// RemoveMember removes a user from an organization.
 func (s *TeamService) RemoveMember(userID, organizationID uint) error {
 	result := s.db.Where("user_id = ? AND organization_id = ?", userID, organizationID).
 		Delete(&domain.TeamMember{})
@@ -58,8 +53,6 @@ func (s *TeamService) RemoveMember(userID, organizationID uint) error {
 	return nil
 }
 
-// ListMembers returns all members of an organization, including their user data.
-// Preload("User") tells GORM to also fetch the related User record for each member.
 func (s *TeamService) ListMembers(organizationID uint) ([]domain.TeamMember, error) {
 	var members []domain.TeamMember
 
@@ -72,7 +65,6 @@ func (s *TeamService) ListMembers(organizationID uint) ([]domain.TeamMember, err
 	return members, nil
 }
 
-// GetMemberRole returns the role of a user within an organization.
 func (s *TeamService) GetMemberRole(userID, organizationID uint) (string, error) {
 	var member domain.TeamMember
 
