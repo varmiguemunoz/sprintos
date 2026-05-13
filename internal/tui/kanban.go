@@ -230,6 +230,11 @@ func (m KanbanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
+		case "b":
+			project := m.project
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenBoardSetup, Project: project, Editing: true}
+			}
 		case "esc":
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenDashboard}
@@ -316,7 +321,7 @@ func (m KanbanModel) View() string {
 		}
 		footer += "\n" + normalStyle.Render("↑/↓ choose state  •  enter to confirm  •  esc to cancel")
 	} else {
-		footer = normalStyle.Render("←/→ columns  •  ↑/↓ tasks  •  enter view  •  m move  •  d delete  •  n new task  •  esc back  •  q quit")
+		footer = normalStyle.Render("←/→ columns  •  ↑/↓ tasks  •  enter view  •  m move  •  d delete  •  n new task  •  b edit board  •  esc back  •  q quit")
 	}
 
 	return header + "\n\n" + board + "\n\n" + footer + "\n"

@@ -34,6 +34,23 @@ var templates = map[string][]stateTemplate{
 		{Name: "In Review", Color: "#F59E0B", Position: 3, IsDone: false},
 		{Name: "Done", Color: "#10B981", Position: 4, IsDone: true},
 	},
+	"simple": {
+		{Name: "Todo", Color: "#6B7280", Position: 1, IsDone: false},
+		{Name: "Done", Color: "#10B981", Position: 2, IsDone: true},
+	},
+}
+
+type TemplatePreview struct {
+	Key    string
+	Name   string
+	States []string
+}
+
+func ListTemplates() []TemplatePreview {
+	return []TemplatePreview{
+		{Key: "standard", Name: "Standard", States: []string{"Backlog", "In Progress", "In Review", "Done"}},
+		{Key: "simple", Name: "Simple", States: []string{"Todo", "Done"}},
+	}
 }
 
 // ApplyTemplate creates all the states from a named template for a given project.

@@ -27,6 +27,8 @@ const (
 	screenInviteUser
 	screenMCPSetup
 	screenCreateComment
+	screenAssignUser
+	screenBoardSetup
 )
 
 type NavigateMsg struct {
@@ -36,6 +38,7 @@ type NavigateMsg struct {
 	Org      domain.Organization
 	Task     domain.Task
 	StateID  uint
+	Editing  bool
 }
 
 type UserResolvedMsg struct {
@@ -152,6 +155,26 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentModel = editTask
 			m.activeScreen = screenEditTask
 			return m, editTask.Init()
+
+		case screenBoardSetup:
+			setup := NewBoardSetupModel(msg.Project, msg.Editing, m.stateSvc, m.taskSvc)
+			m.currentModel = setup
+			m.activeScreen = screenBoardSetup
+			return m, setup.Init()
+
+		case screenAssignUser:
+			if m.currentUser != nil {
+				assignUser := NewAssignUserModel(
+					msg.Task,
+					msg.Project,
+					m.currentOrgID,
+					m.teamSvc,
+					m.taskSvc,
+				)
+				m.currentModel = assignUser
+				m.activeScreen = screenAssignUser
+				return m, assignUser.Init()
+			}
 
 		case screenCreateComment:
 			if m.currentUser != nil {

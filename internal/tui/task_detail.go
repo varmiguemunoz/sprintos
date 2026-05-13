@@ -68,6 +68,12 @@ func (m TaskDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "a":
+			task := m.task
+			project := m.project
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenAssignUser, Task: task, Project: project}
+			}
 		case "c":
 			task := m.task
 			project := m.project
@@ -143,7 +149,7 @@ func (m TaskDetailModel) View() string {
 	}
 
 	s += "\n" + normalStyle.Render(strings.Repeat("─", 40)) + "\n"
-	s += normalStyle.Render("c comment  •  e edit  •  esc back to board  •  q quit") + "\n"
+	s += normalStyle.Render("a assign  •  c comment  •  e edit  •  esc back to board  •  q quit") + "\n"
 
 	return s
 }

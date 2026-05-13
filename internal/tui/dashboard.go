@@ -9,17 +9,23 @@ import (
 )
 
 type DashboardModel struct {
-	projects   []domain.Project
-	cursor     int
-	loading    bool
-	err        error
-	orgID      uint
-	projectSvc *app.ProjectService
+	projects        []domain.Project
+	cursor          int
+	loading         bool
+	err             error
+	orgID           uint
+	deleting        bool
+	selectedProject *domain.Project
+	projectSvc      *app.ProjectService
 }
 
 type ProjectsLoadedMsg struct {
 	Projects []domain.Project
 	Err      error
+}
+
+type ProjectDeletedMsg struct {
+	Err error
 }
 
 func NewDashboardModel(orgID uint, projectSvc *app.ProjectService) DashboardModel {
@@ -37,11 +43,30 @@ func (m DashboardModel) loadProjectsCmd() tea.Cmd {
 	}
 }
 
+func (m DashboardModel) deleteProjectCmd(id uint) tea.Cmd {
+	return func() tea.Msg {
+		err := m.projectSvc.Delete(id)
+		return ProjectDeletedMsg{Err: err}
+	}
+}
+
 func (m DashboardModel) Init() tea.Cmd {
 	return m.loadProjectsCmd()
 }
 
 func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if msg, ok := msg.(ProjectDeletedMsg); ok {
+		m.deleting = false
+		m.selectedProject = nil
+		if msg.Err != nil {
+			m.err = msg.Err
+			return m, nil
+		}
+		m.loading = true
+		m.projects = nil
+		return m, m.loadProjectsCmd()
+	}
+
 	switch msg := msg.(type) {
 
 	case ProjectsLoadedMsg:
@@ -55,6 +80,20 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		if m.deleting {
+			switch msg.String() {
+			case "y", "Y":
+				if m.selectedProject != nil {
+					id := m.selectedProject.ID
+					return m, m.deleteProjectCmd(id)
+				}
+			case "n", "N", "esc":
+				m.deleting = false
+				m.selectedProject = nil
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "up", "k":
 			if m.cursor > 0 {
@@ -78,6 +117,12 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return NavigateMsg{To: screenEditProject, Project: selected}
 				}
 			}
+		case "D":
+			if len(m.projects) > 0 {
+				p := m.projects[m.cursor]
+				m.selectedProject = &p
+				m.deleting = true
+			}
 		case "n":
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenCreateProject}
@@ -86,7 +131,7 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenOrgSettings}
 			}
-		case "L": 
+		case "L":
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenLogin}
 			}
@@ -116,12 +161,24 @@ func (m DashboardModel) View() string {
 		for i, project := range m.projects {
 			if i == m.cursor {
 				s += selectedStyle.Render(fmt.Sprintf("> %s", project.Name)) + "\n"
+			//	if project.Description != nil && *project.Description != "" {
+			//		s += normalStyle.Render(fmt.Sprintf("  %s", *project.Description)) + "\n"
+			// }
 			} else {
 				s += normalStyle.Render(fmt.Sprintf("  %s", project.Name)) + "\n"
+			//	if project.Description != nil && *project.Description != "" {
+			//		s += normalStyle.Render(fmt.Sprintf("  %s", *project.Description)) + "\n"
+			//	}
 			}
 		}
 	}
 
-	s += "\n" + normalStyle.Render("↑/↓ move  •  enter open  •  e edit  •  n new project  •  s settings  •  L logout  •  q quit") + "\n"
+	if m.deleting && m.selectedProject != nil {
+		s += "\n" + errorStyle.Render(fmt.Sprintf("Delete '%s'? This cannot be undone.", m.selectedProject.Name)) + "\n"
+		s += normalStyle.Render("y to confirm  •  n / esc to cancel") + "\n"
+	} else {
+		s += "\n" + normalStyle.Render("↑/↓ move  •  enter open  •  e edit  •  D delete  •  n new project  •  s settings  •  L logout  •  q quit") + "\n"
+	}
+
 	return s
 }

@@ -167,6 +167,6 @@ func (m OrgSettingsModel) View() string {
 		s += selectedStyle.Render("✓ Changes saved successfully") + "\n\n"
 	}
 
-	s += normalStyle.Render("tab/↓ next field  •  shift+tab/↑ previous  •  enter to save  • L logout • esc back") + "\n"
+	s += normalStyle.Render("tab/↓ next  •  enter save  •  i invite member  •  m mcp setup  •  L logout  •  esc back") + "\n"
 	return s
 }

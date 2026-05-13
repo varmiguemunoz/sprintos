@@ -66,10 +66,6 @@ func (m CreateProjectModel) submitCmd() tea.Cmd {
 			return ProjectCreatedMsg{Err: err}
 		}
 
-		if err := m.stateSvc.ApplyTemplate(project.ID, "standard"); err != nil {
-			return ProjectCreatedMsg{Err: err}
-		}
-
 		return ProjectCreatedMsg{Project: project}
 	}
 }
@@ -80,14 +76,15 @@ func (m CreateProjectModel) Init() tea.Cmd {
 
 func (m CreateProjectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
-	if msg,ok := msg.(ProjectCreatedMsg); ok { 
-		if msg.Err != nil { 
+	if msg, ok := msg.(ProjectCreatedMsg); ok {
+		m.loading = false
+		if msg.Err != nil {
 			m.err = msg.Err
-			m.loading = false
 			return m, nil
 		}
-		return m, func() tea.Msg { 
-			return NavigateMsg{To: screenDashboard}
+		project := *msg.Project
+		return m, func() tea.Msg {
+			return NavigateMsg{To: screenBoardSetup, Project: project, Editing: false}
 		}
 	}
 
@@ -121,15 +118,6 @@ func (m CreateProjectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.inputs[m.focused].Focus()
 		}
 
-	case ProjectCreatedMsg:
-		if msg.Err != nil {
-			m.err = msg.Err
-			m.loading = false
-			return m, nil
-		}
-		return m, func() tea.Msg {
-			return NavigateMsg{To: screenDashboard}
-		}
 	}
 
 	var cmd tea.Cmd
