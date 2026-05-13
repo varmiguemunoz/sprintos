@@ -37,15 +37,23 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: |
           PKG="github.com/varmiguemunoz/command_pm_app/internal/config"
-          LDFLAGS="-s -w -X ${PKG}.DatabaseURL=${DATABASE_URL} -X ${PKG}.GitHubClientID=${GITHUB_CLIENT_ID} -X ${PKG}.GitHubClientSecret=${GITHUB_CLIENT_SECRET} -X ${PKG}.SMTPHost=${SMTP_HOST} -X ${PKG}.SMTPPort=${SMTP_PORT} -X ${PKG}.SMTPFrom=${SMTP_FROM} -X ${PKG}.SMTPPassword=${SMTP_PASSWORD}"
+
+          LDFLAGS="-s -w"
+          LDFLAGS="$LDFLAGS -X ${PKG}.DatabaseURL=${DATABASE_URL}"
+          LDFLAGS="$LDFLAGS -X ${PKG}.GitHubClientID=${GITHUB_CLIENT_ID}"
+          LDFLAGS="$LDFLAGS -X ${PKG}.GitHubClientSecret=${GITHUB_CLIENT_SECRET}"
+          LDFLAGS="$LDFLAGS -X ${PKG}.SMTPHost=${SMTP_HOST}"
+          LDFLAGS="$LDFLAGS -X ${PKG}.SMTPPort=${SMTP_PORT}"
+          LDFLAGS="$LDFLAGS -X ${PKG}.SMTPFrom=${SMTP_FROM}"
+          LDFLAGS="$LDFLAGS -X ${PKG}.SMTPPassword=${SMTP_PASSWORD}"
 
           mkdir -p dist
 
-          GOOS=darwin  GOARCH=amd64  go build -ldflags "$LDFLAGS" -o dist/sprintos-darwin-amd64     .
-          GOOS=darwin  GOARCH=arm64  go build -ldflags "$LDFLAGS" -o dist/sprintos-darwin-arm64     .
-          GOOS=linux   GOARCH=amd64  go build -ldflags "$LDFLAGS" -o dist/sprintos-linux-amd64      .
-          GOOS=linux   GOARCH=arm64  go build -ldflags "$LDFLAGS" -o dist/sprintos-linux-arm64      .
-          GOOS=windows GOARCH=amd64  go build -ldflags "$LDFLAGS" -o dist/sprintos-windows-amd64.exe .
+          CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64  go build -ldflags "$LDFLAGS" -o dist/sprintos-darwin-amd64     .
+          CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64  go build -ldflags "$LDFLAGS" -o dist/sprintos-darwin-arm64     .
+          CGO_ENABLED=0 GOOS=linux   GOARCH=amd64  go build -ldflags "$LDFLAGS" -o dist/sprintos-linux-amd64      .
+          CGO_ENABLED=0 GOOS=linux   GOARCH=arm64  go build -ldflags "$LDFLAGS" -o dist/sprintos-linux-arm64      .
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64  go build -ldflags "$LDFLAGS" -o dist/sprintos-windows-amd64.exe .
 
       - name: Calculate SHA256 checksums
         id: sha
