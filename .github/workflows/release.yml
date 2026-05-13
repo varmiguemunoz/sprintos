@@ -36,14 +36,8 @@ jobs:
           SMTP_FROM: ${{ secrets.SMTP_FROM }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: |
-          LDFLAGS="-s -w \
-            -X github.com/varmiguemunoz/command_pm_app/internal/config.DatabaseURL=${DATABASE_URL} \
-            -X github.com/varmiguemunoz/command_pm_app/internal/config.GitHubClientID=${GITHUB_CLIENT_ID} \
-            -X github.com/varmiguemunoz/command_pm_app/internal/config.GitHubClientSecret=${GITHUB_CLIENT_SECRET} \
-            -X github.com/varmiguemunoz/command_pm_app/internal/config.SMTPHost=${SMTP_HOST} \
-            -X github.com/varmiguemunoz/command_pm_app/internal/config.SMTPPort=${SMTP_PORT} \
-            -X github.com/varmiguemunoz/command_pm_app/internal/config.SMTPFrom=${SMTP_FROM} \
-            -X github.com/varmiguemunoz/command_pm_app/internal/config.SMTPPassword=${SMTP_PASSWORD}"
+          PKG="github.com/varmiguemunoz/command_pm_app/internal/config"
+          LDFLAGS="-s -w -X ${PKG}.DatabaseURL=${DATABASE_URL} -X ${PKG}.GitHubClientID=${GITHUB_CLIENT_ID} -X ${PKG}.GitHubClientSecret=${GITHUB_CLIENT_SECRET} -X ${PKG}.SMTPHost=${SMTP_HOST} -X ${PKG}.SMTPPort=${SMTP_PORT} -X ${PKG}.SMTPFrom=${SMTP_FROM} -X ${PKG}.SMTPPassword=${SMTP_PASSWORD}"
 
           mkdir -p dist
 
@@ -57,16 +51,16 @@ jobs:
         id: sha
         run: |
           cd dist
-          sha256sum sprintos-darwin-amd64      > sprintos-darwin-amd64.sha256
-          sha256sum sprintos-darwin-arm64      > sprintos-darwin-arm64.sha256
-          sha256sum sprintos-linux-amd64       > sprintos-linux-amd64.sha256
-          sha256sum sprintos-linux-arm64       > sprintos-linux-arm64.sha256
-          sha256sum sprintos-windows-amd64.exe > sprintos-windows-amd64.exe.sha256
+          sha256sum sprintos-darwin-amd64       > sprintos-darwin-amd64.sha256
+          sha256sum sprintos-darwin-arm64       > sprintos-darwin-arm64.sha256
+          sha256sum sprintos-linux-amd64        > sprintos-linux-amd64.sha256
+          sha256sum sprintos-linux-arm64        > sprintos-linux-arm64.sha256
+          sha256sum sprintos-windows-amd64.exe  > sprintos-windows-amd64.exe.sha256
 
-          echo "SHA_DARWIN_AMD64=$(sha256sum sprintos-darwin-amd64 | awk '{print $1}')"      >> $GITHUB_OUTPUT
-          echo "SHA_DARWIN_ARM64=$(sha256sum sprintos-darwin-arm64 | awk '{print $1}')"      >> $GITHUB_OUTPUT
-          echo "SHA_LINUX_AMD64=$(sha256sum sprintos-linux-amd64 | awk '{print $1}')"        >> $GITHUB_OUTPUT
-          echo "SHA_LINUX_ARM64=$(sha256sum sprintos-linux-arm64 | awk '{print $1}')"        >> $GITHUB_OUTPUT
+          echo "SHA_DARWIN_AMD64=$(sha256sum sprintos-darwin-amd64 | awk '{print $1}')"       >> $GITHUB_OUTPUT
+          echo "SHA_DARWIN_ARM64=$(sha256sum sprintos-darwin-arm64 | awk '{print $1}')"       >> $GITHUB_OUTPUT
+          echo "SHA_LINUX_AMD64=$(sha256sum sprintos-linux-amd64 | awk '{print $1}')"         >> $GITHUB_OUTPUT
+          echo "SHA_LINUX_ARM64=$(sha256sum sprintos-linux-arm64 | awk '{print $1}')"         >> $GITHUB_OUTPUT
           echo "SHA_WINDOWS_AMD64=$(sha256sum sprintos-windows-amd64.exe | awk '{print $1}')" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
@@ -91,9 +85,6 @@ jobs:
             ```bash
             curl -fsSL https://raw.githubusercontent.com/varmiguemunoz/sprintos/main/install.sh | sh
             ```
-
-            ### Manual download
-            Pick the binary for your platform below.
           files: |
             dist/sprintos-darwin-amd64
             dist/sprintos-darwin-amd64.sha256
@@ -113,10 +104,9 @@ jobs:
           VERSION=${{ steps.version.outputs.VERSION }}
           SHA_AMD64=${{ steps.sha.outputs.SHA_DARWIN_AMD64 }}
           SHA_ARM64=${{ steps.sha.outputs.SHA_DARWIN_ARM64 }}
-          REPO="varmiguemunoz/homebrew-sprintos"
           BASE_URL="https://github.com/varmiguemunoz/sprintos/releases/download/${VERSION}"
 
-          FORMULA=$(cat <<FORMULA
+          cat > /tmp/sprintos.rb << FORMULA
           class Sprintos < Formula
             desc "A fast, keyboard-driven project manager for your terminal"
             homepage "https://github.com/varmiguemunoz/sprintos"
@@ -146,10 +136,10 @@ jobs:
             end
           end
           FORMULA
-          )
 
-          git clone https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${REPO}.git tap-repo
-          echo "$FORMULA" > tap-repo/Formula/sprintos.rb
+          git clone https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/varmiguemunoz/homebrew-sprintos.git tap-repo
+          mkdir -p tap-repo/Formula
+          cp /tmp/sprintos.rb tap-repo/Formula/sprintos.rb
           cd tap-repo
           git config user.email "github-actions@github.com"
           git config user.name "GitHub Actions"
@@ -163,10 +153,9 @@ jobs:
         run: |
           VERSION=${{ steps.version.outputs.VERSION }}
           SHA=${{ steps.sha.outputs.SHA_WINDOWS_AMD64 }}
-          REPO="varmiguemunoz/scoop-sprintos"
           BASE_URL="https://github.com/varmiguemunoz/sprintos/releases/download/${VERSION}"
 
-          MANIFEST=$(cat <<JSON
+          cat > /tmp/sprintos.json << JSON
           {
             "version": "${VERSION#v}",
             "description": "A fast, keyboard-driven project manager for your terminal",
@@ -179,17 +168,14 @@ jobs:
               "github": "https://github.com/varmiguemunoz/sprintos"
             },
             "autoupdate": {
-              "url": "https://github.com/varmiguemunoz/sprintos/releases/download/v\$version/sprintos-windows-amd64.exe",
-              "hash": {
-                "url": "\$url.sha256"
-              }
+              "url": "https://github.com/varmiguemunoz/sprintos/releases/download/v\$version/sprintos-windows-amd64.exe"
             }
           }
           JSON
-          )
 
-          git clone https://x-access-token:${SCOOP_BUCKET_TOKEN}@github.com/${REPO}.git scoop-repo
-          echo "$MANIFEST" > scoop-repo/bucket/sprintos.json
+          git clone https://x-access-token:${SCOOP_BUCKET_TOKEN}@github.com/varmiguemunoz/scoop-sprintos.git scoop-repo
+          mkdir -p scoop-repo/bucket
+          cp /tmp/sprintos.json scoop-repo/bucket/sprintos.json
           cd scoop-repo
           git config user.email "github-actions@github.com"
           git config user.name "GitHub Actions"
