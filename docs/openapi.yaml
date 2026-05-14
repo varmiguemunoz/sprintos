@@ -1,0 +1,277 @@
+openapi: "3.0.3"
+info:
+  title: SprintOS API
+  version: "1.0.0"
+  description: |
+    The SprintOS REST API lets you manage projects, tasks, states and team members
+    from any tool, script or CI pipeline.
+
+    All endpoints require an API key passed as a Bearer token.
+    Generate one with: `sprintos api-key create --name "my-key"`
+
+servers:
+  - url: http://localhost:8090
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  schemas:
+    Task:
+      type: object
+      properties:
+        ID:          { type: integer }
+        TaskNumber:  { type: integer }
+        Title:       { type: string }
+        Description: { type: string }
+        StateID:     { type: integer }
+        ProjectID:   { type: integer }
+        AssignedTo:  { type: integer, nullable: true }
+        DueDate:     { type: string, format: date-time, nullable: true }
+        CreatedAt:   { type: string, format: date-time }
+
+    Project:
+      type: object
+      properties:
+        ID:          { type: integer }
+        Name:        { type: string }
+        Description: { type: string }
+        OrgID:       { type: integer }
+        CreatedAt:   { type: string, format: date-time }
+
+    State:
+      type: object
+      properties:
+        ID:        { type: integer }
+        Name:      { type: string }
+        Color:     { type: string }
+        Position:  { type: integer }
+        IsDone:    { type: boolean }
+        ProjectID: { type: integer }
+
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: Server is running
+
+  /api/projects:
+    get:
+      summary: List all projects in your organization
+      responses:
+        "200":
+          description: Array of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Project" }
+    post:
+      summary: Create a new project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:        { type: string }
+                description: { type: string }
+      responses:
+        "201":
+          description: Project created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+
+  /api/tasks:
+    get:
+      summary: List tasks
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: state_id
+          in: query
+          schema: { type: integer }
+          description: Filter by state
+        - name: assignee_id
+          in: query
+          schema: { type: integer }
+          description: Filter by assignee user ID
+      responses:
+        "200":
+          description: Array of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Task" }
+    post:
+      summary: Create a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, project_id, state_id]
+              properties:
+                title:       { type: string }
+                description: { type: string }
+                project_id:  { type: integer }
+                state_id:    { type: integer }
+      responses:
+        "201":
+          description: Task created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+
+  /api/tasks/{id}:
+    get:
+      summary: Get a task by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Task detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+    patch:
+      summary: Update a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:       { type: string }
+                description: { type: string }
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+    delete:
+      summary: Delete a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Task deleted
+
+  /api/tasks/{id}/move:
+    post:
+      summary: Move a task to a different state
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state_id]
+              properties:
+                state_id: { type: integer }
+      responses:
+        "200":
+          description: Task moved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+
+  /api/states:
+    get:
+      summary: List states for a project
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Array of states
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/State" }
+
+  /api/members:
+    get:
+      summary: List members of your organization
+      responses:
+        "200":
+          description: Array of team members
+
+  /api/webhooks:
+    get:
+      summary: List outbound webhooks
+      responses:
+        "200":
+          description: Array of webhooks
+    post:
+      summary: Register an outbound webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  example: "https://hooks.zapier.com/hooks/catch/abc/xyz"
+                events:
+                  type: array
+                  items: { type: string }
+                  example: ["task.created", "task.moved"]
+      responses:
+        "201":
+          description: Webhook registered
+
+  /api/webhooks/{id}:
+    delete:
+      summary: Delete a webhook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Webhook deleted

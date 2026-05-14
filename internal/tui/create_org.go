@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -40,6 +41,10 @@ func NewCreateOrgModel(ownerID uint, orgSvc *app.OrganizationService, teamSvc *a
 	inputs[2].Placeholder = "+1234567890"
 	inputs[2].CharLimit = 20
 
+	inputs = append(inputs, textinput.New())
+	inputs[3].Placeholder = "SPR (2-5 uppercase letters used as task prefix)"
+	inputs[3].CharLimit = 5
+
 	return CreateOrgModel{
 		inputs:  inputs,
 		focused: 0,
@@ -62,7 +67,12 @@ func (m CreateOrgModel) submitCmd() tea.Cmd {
 			return OrgCreatedMsg{Err: fmt.Errorf("whatsapp number is required")}
 		}
 
-		org, err := m.orgSvc.Create(name, description, whatsapp, m.ownerID)
+		prefix := strings.ToUpper(strings.TrimSpace(m.inputs[3].Value()))
+		if prefix == "" {
+			prefix = "TSK"
+		}
+
+		org, err := m.orgSvc.CreateWithPrefix(name, description, whatsapp, prefix, m.ownerID)
 		if err != nil {
 			return OrgCreatedMsg{Err: err}
 		}
@@ -147,7 +157,7 @@ func (m CreateOrgModel) View() string {
 			"\n\n" + normalStyle.Render("Creating your organization...") + "\n"
 	}
 
-	labels := []string{"Organization name *", "Description", "WhatsApp number *"}
+	labels := []string{"Organization name *", "Description", "WhatsApp number *", "Task ID prefix * (e.g. SPR)"}
 
 	s := titleStyle.Render("SprintOS — Set up your organization") + "\n\n"
 	s += normalStyle.Render("This is required to get started. You can edit these details later.") + "\n\n"

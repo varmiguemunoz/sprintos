@@ -17,6 +17,33 @@ func NewOrganizationService(db *gorm.DB) *OrganizationService {
 	return &OrganizationService{db: db}
 }
 
+func (s *OrganizationService) CreateWithPrefix(
+	name string,
+	description string,
+	whatsappNumber string,
+	prefix string,
+	ownerID uint,
+) (*domain.Organization, error) {
+	var owner domain.User
+	if err := s.db.First(&owner, ownerID).Error; err != nil {
+		return nil, fmt.Errorf("owner with id %d does not exist", ownerID)
+	}
+
+	org := domain.Organization{
+		Name:           name,
+		Description:    &description,
+		WhatsappNumber: whatsappNumber,
+		Prefix:         prefix,
+		OwnerID:        ownerID,
+	}
+
+	if err := s.db.Create(&org).Error; err != nil {
+		return nil, fmt.Errorf("could not create organization: %w", err)
+	}
+
+	return &org, nil
+}
+
 func (s *OrganizationService) Create(
 	name string,
 	description string,

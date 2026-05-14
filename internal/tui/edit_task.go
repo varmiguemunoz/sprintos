@@ -141,7 +141,7 @@ func (m EditTaskModel) View() string {
 
 	labels := []string{"Title *", "Description"}
 
-	s := titleStyle.Render(fmt.Sprintf("SprintOS — Edit: %s", m.task.Title)) + "\n\n"
+	s := titleStyle.Render(fmt.Sprintf("SprintOS — Edit #%d: %s", m.task.TaskNumber, m.task.Title)) + "\n\n"
 
 	for i, label := range labels {
 		if i == m.focused {

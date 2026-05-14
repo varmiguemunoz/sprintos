@@ -16,6 +16,7 @@ type DashboardModel struct {
 	orgID           uint
 	deleting        bool
 	selectedProject *domain.Project
+	showHelp        bool
 	projectSvc      *app.ProjectService
 }
 
@@ -127,6 +128,12 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenCreateProject}
 			}
+		case "/":
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenSearch}
+			}
+		case "?": 
+			m.showHelp = !m.showHelp
 		case "s":
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenOrgSettings}
@@ -177,7 +184,7 @@ func (m DashboardModel) View() string {
 		s += "\n" + errorStyle.Render(fmt.Sprintf("Delete '%s'? This cannot be undone.", m.selectedProject.Name)) + "\n"
 		s += normalStyle.Render("y to confirm  •  n / esc to cancel") + "\n"
 	} else {
-		s += "\n" + normalStyle.Render("↑/↓ move  •  enter open  •  e edit  •  D delete  •  n new project  •  s settings  •  L logout  •  q quit") + "\n"
+		s += "\n" + normalStyle.Render("↑/↓ move  •  enter open  •  n new  •  e edit  •  D delete  •  / search  •  s settings  •  ? help  •  q quit") + "\n"
 	}
 
 	return s

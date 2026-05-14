@@ -60,3 +60,22 @@ func GetSMTPPassword() string {
 	}
 	return os.Getenv("SMTP_PASSWORD")
 }
+
+var (
+	EvolutionAPIURL   = ""
+	EvolutionAPIToken = ""
+)
+
+func GetEvolutionAPIURL() string {
+	if EvolutionAPIURL != "" {
+		return EvolutionAPIURL
+	}
+	return os.Getenv("EVOLUTION_API_URL")
+}
+
+func GetEvolutionAPIToken() string {
+	if EvolutionAPIToken != "" {
+		return EvolutionAPIToken
+	}
+	return os.Getenv("EVOLUTION_API_TOKEN")
+}

@@ -17,6 +17,19 @@ func NewTaskService(db *gorm.DB) *TaskService {
 	return &TaskService{db: db}
 }
 
+func (s *TaskService) nextTaskNumber(projectID uint) (int, error) {
+	var orgID uint
+	s.db.Raw("SELECT organization_id FROM projects WHERE id = ?", projectID).Scan(&orgID)
+
+	var max int
+	err := s.db.Raw("SELECT COALESCE(MAX(t.task_number), 0) FROM tasks t JOIN projects p ON p.id = t.project_id WHERE p.organization_id = ? AND t.deleted_at IS NULL", orgID).Scan(&max).Error
+
+	if err != nil {
+		return 0, fmt.Errorf("could not get next task number: %w", err)
+	}
+	return max + 1, nil
+}
+
 func (s *TaskService) Create(
 	title string,
 	description string,
@@ -27,7 +40,13 @@ func (s *TaskService) Create(
 	startDate *time.Time,
 	dueDate *time.Time,
 ) (*domain.Task, error) {
+	taskNumber, err := s.nextTaskNumber(projectID)
+	if err != nil {
+		taskNumber = 1
+	}
+
 	task := domain.Task{
+		TaskNumber:  taskNumber,
 		Title:       title,
 		Description: &description,
 		StateID:     stateID,
@@ -165,12 +184,37 @@ func (s *TaskService) MoveState(taskID uint, newStateID uint) (*domain.Task, err
 		updates["completed_at"] = now
 	}
 
+	oldStateID := task.StateID
+	secondsInState := int64(time.Since(task.UpdatedAt).Seconds())
+
 	if err := s.db.Model(&task).Updates(updates).Error; err != nil {
 		return nil, fmt.Errorf("could not move task: %w", err)
 	}
 
+	transition := domain.StateTransition{
+		TaskID:             taskID,
+		FromStateID:        &oldStateID,
+		ToStateID:          newStateID,
+		ChangedByID:        task.CreatedByID,
+		SecondsInFromState: secondsInState,
+	}
+	s.db.Create(&transition)
+
 	task.State = newState
 
+	return &task, nil
+}
+
+func (s *TaskService) GetByTaskNumber(taskNumber int, projectID uint) (*domain.Task, error) {
+	var task domain.Task
+	err := s.db.
+		Preload("State").
+		Preload("Assignee").
+		Where("task_number = ? AND project_id = ?", taskNumber, projectID).
+		First(&task).Error
+	if err != nil {
+		return nil, fmt.Errorf("task %d not found in project %d: %w", taskNumber, projectID, err)
+	}
 	return &task, nil
 }
 

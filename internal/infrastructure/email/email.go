@@ -39,3 +39,21 @@ This invitation expires in 7 days.
 
 	return nil
 }
+
+func SendReview(toEmail, orgName, report string) error {
+	host := config.GetSMTPHost()
+	port := config.GetSMTPPort()
+	from := config.GetSMTPFrom()
+	password := config.GetSMTPPassword()
+
+	subject := fmt.Sprintf("SprintOS Board Review — %s", orgName)
+	message := fmt.Sprintf(
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s",
+		from, toEmail, subject, report,
+	)
+
+	auth := smtp.PlainAuth("", from, password, host)
+	addr := fmt.Sprintf("%s:%s", host, port)
+
+	return smtp.SendMail(addr, auth, from, []string{toEmail}, []byte(message))
+}

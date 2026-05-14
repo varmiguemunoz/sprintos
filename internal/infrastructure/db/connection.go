@@ -26,6 +26,14 @@ func Connect(databaseURL string) (*gorm.DB, error) {
 		&domain.Task{},
 		&domain.Comment{},
 		&domain.Invitation{},
+		&domain.GitHubIntegration{},
+		&domain.APIKey{},
+		&domain.OutboundWebhook{},
+		&domain.Sprint{},
+		&domain.BurndownSnapshot{},
+		&domain.StateTransition{},
+		&domain.NotificationConfig{},
+		&domain.NotificationPreference{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run migrations: %w", err)

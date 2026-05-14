@@ -29,6 +29,8 @@ const (
 	screenCreateComment
 	screenAssignUser
 	screenBoardSetup
+	screenSearch
+	screenSprintView
 )
 
 type NavigateMsg struct {
@@ -56,6 +58,7 @@ type AppModel struct {
 	stateSvc     *app.StateService
 	taskSvc      *app.TaskService
 	teamSvc      *app.TeamService
+	sprintSvc    *app.SprintService
 	commentSvc    *app.CommentService
 	invitationSvc *app.InvitationService
 	currentUser   *domain.User
@@ -189,6 +192,18 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, createComment.Init()
 			}
 
+		case screenSprintView:
+			sv := NewSprintViewModel(msg.Project, m.sprintSvc, m.taskSvc, m.stateSvc)
+			m.currentModel = sv
+			m.activeScreen = screenSprintView
+			return m, sv.Init()
+
+		case screenSearch:
+			search := NewSearchModel(m.currentOrgID, m.projectSvc, m.taskSvc)
+			m.currentModel = search
+			m.activeScreen = screenSearch
+			return m, search.Init()
+
 		case screenMCPSetup:
 			setup := NewMCPSetupModel()
 			m.currentModel = setup
@@ -270,6 +285,7 @@ func Start(db *gorm.DB) error {
 	taskSvc := app.NewTaskService(db)
 	teamSvc := app.NewTeamService(db)
 	commentSvc := app.NewCommentService(db)
+	sprintSvc := app.NewSprintService(db)
 	invitationSvc := app.NewInvitationService(db)
 
 	startModel := tea.Model(NewLoginModel())
@@ -304,6 +320,7 @@ func Start(db *gorm.DB) error {
 		teamSvc:      teamSvc,
 		commentSvc:    commentSvc,
 		invitationSvc: invitationSvc,
+		sprintSvc:     sprintSvc,
 		currentUser:   startUser,
 		currentOrgID: startOrgID,
 		currentOrg:   startOrg,

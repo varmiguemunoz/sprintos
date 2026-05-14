@@ -1,396 +1,693 @@
-# SprintOs — Descripción General del Proyecto (v1)
+<div align="center">
 
-> Gestor de proyectos y tareas que vive completamente en la terminal. Diseñado para equipos pequeños que prefieren vivir en la línea de comandos sin renunciar a una experiencia visual agradable, notificaciones en tiempo real y conexión con inteligencia artificial.
+# ⚡ SprintOS
 
----
+### The terminal-first project manager for developer teams
 
-## Índice
+[![Release](https://img.shields.io/github/v/release/varmiguemunoz/sprintos)](https://github.com/varmiguemunoz/sprintos/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.22-blue)](https://golang.org)
 
-1. [Visión General](#1-visión-general)
-2. [Zona 1 — Autenticación](#2-zona-1--autenticación)
-3. [Zona 2 — Organizaciones](#3-zona-2--organizaciones)
-4. [Zona 3 — Equipo y Roles](#4-zona-3--equipo-y-roles)
-5. [Zona 4 — Proyectos](#5-zona-4--proyectos)
-6. [Zona 5 — Estados y Plantillas](#6-zona-5--estados-y-plantillas)
-7. [Zona 6 — Tareas](#7-zona-6--tareas)
-8. [Zona 7 — Interfaz de Terminal (TUI)](#8-zona-7--interfaz-de-terminal-tui)
-9. [Zona 8 — Notificaciones por WhatsApp](#9-zona-8--notificaciones-por-whatsapp)
-10. [Zona 9 — MCP Local (Integración con IA)](#10-zona-9--mcp-local-integración-con-ia)
-11. [Zona 10 — Infraestructura y Base de Datos](#11-zona-10--infraestructura-y-base-de-datos)
-12. [Stack Tecnológico](#12-stack-tecnológico)
-13. [Tareas de Desarrollo — v1](#13-tareas-de-desarrollo--v1)
+**A fast, keyboard-driven project manager that lives entirely in your terminal.**
+No browser. No Electron. No configuration. Just install and run.
+
+[Install](#-installation) · [Quick Start](#-quick-start) · [Commands](#-cli-reference) · [API](#-rest-api) · [MCP](#-ai--mcp-tools)
+
+</div>
 
 ---
 
-## 1. Visión General
+## ✨ Why SprintOS?
 
-**CommandPM** es una herramienta de gestión de proyectos que funciona exclusivamente desde la terminal. No hay interfaz web ni aplicación móvil: todo ocurre en la línea de comandos, con una experiencia visual interactiva (TUI) construida con Bubble Tea y Lip Gloss.
+Every PM tool eventually becomes the thing you manage instead of the thing that helps you manage. SprintOS is different:
 
-El programa permite a equipos de trabajo organizar sus proyectos, definir sus propios flujos de estados, asignar tareas, recibir notificaciones por WhatsApp cuando una tarea se completa, y conectar un agente de inteligencia artificial local para generar tareas de forma automática.
-
----
-
-## 2. Zona 1 — Autenticación
-
-**¿Qué hace?**
-Permite a los usuarios identificarse en el sistema usando su cuenta de GitHub o Google, sin necesidad de crear una contraseña propia.
-
-**Comportamiento:**
-- Al ejecutar el programa por primera vez, se muestra una pantalla de bienvenida con las opciones de inicio de sesión.
-- El usuario elige GitHub o Google y el programa abre el navegador para completar el flujo de autorización OAuth2.
-- Una vez autenticado, la sesión queda guardada localmente. En usos posteriores, el login es automático.
-- Si es la primera vez que ese usuario entra al sistema, se le asigna automáticamente el rol de **owner** y se le solicita que cree su organización.
-
-**Tecnologías involucradas:** OAuth2, Goth, Viper (para guardar sesión), SQLite/GORM (para persistir el usuario).
+- 🖥️ **Lives in the terminal** — no context switching, no browser tabs
+- 🤖 **AI-native** — your AI agent can create tasks, generate sprints, and review the board via MCP
+- 🔗 **GitHub-connected** — PRs automatically move tasks between states
+- ⚡ **Zero config** — one install command, login with GitHub, done
+- 🌐 **REST API** — every feature is accessible via HTTP for Zapier, Make, or custom scripts
 
 ---
 
-## 3. Zona 2 — Organizaciones
+## 📦 Installation
 
-**¿Qué hace?**
-Es el contenedor principal de todo el trabajo: proyectos, tareas, estados y miembros del equipo viven dentro de una organización.
+### macOS
 
-**Comportamiento:**
-- Solo el **owner** puede crear y editar la organización.
-- Una organización tiene nombre, descripción y un número de WhatsApp del administrador (usado para las notificaciones).
-- Los **users** (empleados) se unen a la organización de un owner; ellos no pueden crear ni editar la organización.
-- No existe límite de miembros en v1.
-
-**Datos que maneja:** nombre, descripción, número de WhatsApp del administrador, fecha de creación.
-
----
-
-## 4. Zona 3 — Equipo y Roles
-
-**¿Qué hace?**
-Controla quién puede hacer qué dentro de la organización.
-
-**Roles disponibles en v1:**
-
-| Rol   | Descripción |
-|-------|-------------|
-| `owner` | Creador de la organización. Tiene acceso total: puede gestionar la organización, crear/editar/eliminar proyectos, estados, tareas y miembros. |
-| `user`  | Miembro del equipo. Puede crear, editar, mover y comentar tareas. **No puede** crear ni editar la organización. |
-
-**Comportamiento:**
-- El owner puede invitar compañeros al equipo usando su correo electrónico (que debe coincidir con el correo de su cuenta de GitHub o Google).
-- El owner puede eliminar miembros del equipo.
-- El owner puede ver la lista de todos los miembros activos.
-- Los users solo ven los proyectos y tareas relacionados con su organización.
-
----
-
-## 5. Zona 4 — Proyectos
-
-**¿Qué hace?**
-Agrupa estados y tareas bajo un nombre común. Equivale a un "tablero" o "proyecto" en otras herramientas.
-
-**Comportamiento:**
-- El owner y los users pueden crear proyectos.
-- Al crear un proyecto se le pueden asignar los estados que tendrá (tomados de los estados disponibles en la organización).
-- Un proyecto tiene nombre, descripción y fecha de inicio opcional.
-- El owner puede eliminar un proyecto. Los users no pueden eliminarlo.
-- Un proyecto puede editarse (nombre, descripción, estados asociados) en cualquier momento.
-
-**Datos que maneja:** nombre, descripción, fecha de inicio, estados asociados, creador, organización.
-
----
-
-## 6. Zona 5 — Estados y Plantillas
-
-**¿Qué hace?**
-Define el flujo de trabajo: los pasos por los que pasa una tarea desde que se crea hasta que se completa.
-
-**Comportamiento:**
-- Los estados son personalizables: se pueden crear, editar y eliminar.
-- Cada estado tiene un nombre y un color (para visualizarlo en el TUI).
-- Los estados se asignan a un proyecto concreto.
-
-**Sistema de Plantillas:**
-Para no empezar desde cero, el sistema incluye plantillas predefinidas que se pueden aplicar al crear un proyecto. En v1 existe una sola plantilla:
-
-**Plantilla "Estándar":**
-```
-Backlog → In Progress → In Review → Done
+```bash
+brew install varmiguemunoz/sprintos/sprintos
 ```
 
-Las plantillas están diseñadas para ser fácilmente ampliables en versiones futuras: basta con añadir una nueva entrada al catálogo de plantillas.
+### Windows
+
+```powershell
+scoop bucket add sprintos https://github.com/varmiguemunoz/scoop-sprintos
+scoop install sprintos
+```
+
+### Linux
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/varmiguemunoz/sprintos/main/install.sh | sh
+```
+
+### Verify
+
+```bash
+sprintos --version
+```
 
 ---
 
-## 7. Zona 6 — Tareas
+## 🚀 Quick Start
 
-**¿Qué hace?**
-Es el núcleo del programa. Una tarea representa una unidad de trabajo que alguien del equipo debe completar.
+```bash
+# Launch the interactive TUI
+sprintos start
+```
 
-**Datos de una tarea:**
-- Título
-- Descripción
-- Estado (vinculado al proyecto)
-- Persona asignada (un miembro del equipo)
-- Fecha de inicio
-- Fecha de finalización (deadline)
-- Comentarios (cualquier miembro puede añadir comentarios)
-- Proyecto al que pertenece
+On first run, SprintOS walks you through a 3-step wizard:
 
-**Comportamiento:**
-- Cualquier miembro puede crear, editar y ver tareas dentro de su organización.
-- Solo el owner puede eliminar tareas.
-- Una tarea se puede mover de un estado a otro (por ejemplo, de "In Progress" a "In Review") directamente desde el TUI.
-- Cuando una tarea se mueve al estado **Done**, se dispara automáticamente una notificación de WhatsApp al número del administrador con el título de la tarea, el nombre del empleado y los comentarios que dejó.
-- Se puede asignar o reasignar la persona responsable en cualquier momento.
+```
+Step 1 of 3  ●○○  Login with GitHub
+Step 2 of 3  ●●○  Create your organization
+Step 3 of 3  ●●●  Set up your first board
+```
+
+After setup, you land on the project dashboard — fully keyboard-driven.
 
 ---
 
-## 8. Zona 7 — Interfaz de Terminal (TUI)
+## 🖥️ TUI — Keyboard Reference
 
-**¿Qué hace?**
-Es la "pantalla" del programa. En lugar de una web o una app, toda la interacción ocurre en la terminal con una interfaz visual construida con Bubble Tea, Lip Gloss y Bubbles.
+### 📋 Project Dashboard
 
-**Pantallas principales:**
+| Key | Action |
+|-----|--------|
+| `↑ / ↓` or `j / k` | Navigate projects |
+| `enter` | Open project kanban board |
+| `n` | Create new project |
+| `e` | Edit selected project |
+| `D` | Delete project (asks confirmation) |
+| `/` | Fuzzy search across all tasks |
+| `s` | Organization settings |
+| `L` | Logout |
+| `?` | Show keyboard shortcut help |
+| `q` | Quit |
 
-| Pantalla | Descripción |
+### 📌 Kanban Board
+
+| Key | Action |
+|-----|--------|
+| `← / →` or `h / l` | Move between columns |
+| `↑ / ↓` or `j / k` | Move between tasks |
+| `enter` | View task detail |
+| `n` or `+` | Create new task in current column |
+| `m` | Move task to another state (inline picker) |
+| `d` | Delete task (asks confirmation with `y/n`) |
+| `v` | Switch to sprint view |
+| `b` | Edit board layout (add/remove/rename states) |
+| `/` | Fuzzy search tasks |
+| `?` | Show keyboard shortcut help |
+| `esc` | Back to projects |
+| `q` | Quit |
+
+> 💡 **Task IDs** like `#1`, `#2` are shown on every card. Use them in PR titles or branch names to trigger automatic state changes.
+
+> 🔴 **Red `✗`** = task is overdue. **Yellow `⚠`** = due within 48 hours.
+> **`↑`** = high priority. **`!!`** = critical priority.
+
+### 🔍 Task Detail
+
+| Key | Action |
+|-----|--------|
+| `a` | Assign / reassign / unassign user |
+| `c` | Add a comment |
+| `e` | Edit task (title, description) |
+| `esc` | Back to kanban board |
+| `q` | Quit |
+
+### 🏃 Sprint View
+
+| Key | Action |
+|-----|--------|
+| `↑ / ↓` | Navigate sprints |
+| `p` | Enter planning mode (move tasks into sprint) |
+| `esc` | Back to kanban |
+
+### ⚙️ Organization Settings
+
+| Key | Action |
+|-----|--------|
+| `tab / ↓` | Next field |
+| `shift+tab / ↑` | Previous field |
+| `enter` | Save changes |
+| `i` | Invite a team member |
+| `m` | MCP setup (connect to AI tools) |
+| `L` | Logout |
+| `esc` | Back to dashboard |
+
+---
+
+## 📚 CLI Reference
+
+### Core
+
+```bash
+sprintos start              # Launch the interactive TUI
+sprintos --help             # Show all available commands
+sprintos --version          # Show current version
+```
+
+---
+
+### 📋 Task Commands
+
+```bash
+# Create a task
+sprintos task create "Fix login bug"
+sprintos task create "Fix login bug" --state backlog
+sprintos task create "Add rate limiting" --state backlog --priority high
+sprintos task create "Deploy v2" --project 1 --state "In Progress"
+
+# List tasks (reads .sprintos for project if no --project flag)
+sprintos task ls
+sprintos task ls --state backlog
+sprintos task ls --state "In Review"
+sprintos task ls --format json
+sprintos task ls --format json | jq '.[].Title'
+
+# Move a task to another state
+sprintos task move 5 "In Review"
+sprintos task move 5 done
+sprintos task move 5 3          # also accepts state ID
+
+# Show full task detail
+sprintos task show 5
+sprintos task show 5 --format json
+```
+
+**Priority values:** `low` · `medium` · `high` · `critical`
+
+---
+
+### 🏃 Sprint Commands
+
+```bash
+# Create a sprint
+sprintos sprint create \
+  --name "Sprint 1" \
+  --project 1 \
+  --start 2025-06-01 \
+  --end 2025-06-14
+
+# Create with a goal
+sprintos sprint create \
+  --name "Sprint 2" \
+  --project 1 \
+  --start 2025-06-15 \
+  --end 2025-06-28 \
+  --goal "Ship the auth module"
+
+# List sprints for a project
+sprintos sprint list --project 1
+
+# Assign a task to a sprint
+sprintos sprint assign --sprint 1 --task 5
+
+# View velocity + progress
+sprintos sprint velocity --id 1
+
+# Complete a sprint (unfinished tasks move to backlog)
+sprintos sprint complete --id 1 --backlog-state 1
+
+# Take a daily burndown snapshot (add to cron)
+sprintos sprint snapshot
+sprintos sprint snapshot --project 1
+sprintos sprint snapshot --id 1
+
+# Cron example (every night at 11pm)
+# 0 23 * * * /usr/local/bin/sprintos sprint snapshot
+```
+
+---
+
+### 📊 Reporting & Export
+
+```bash
+# Full health report for all projects
+sprintos report
+
+# Report for a specific project
+sprintos report --project 1
+
+# Include completed tasks from last 30 days
+sprintos report --project 1 --completed 30
+
+# Export to CSV
+sprintos export --project 1 --format csv --output tasks.csv
+
+# Export to JSON
+sprintos export --project 1 --format json --output tasks.json
+
+# Pipe-friendly stdout export
+sprintos export --format json | jq '.[].Title'
+sprintos export --format csv > sprint-data.csv
+```
+
+The report shows: task counts by state, overdue tasks, unassigned tasks, average lead time (creation → done), average cycle time per state, and team workload chart.
+
+---
+
+### 📅 Standup & Review
+
+```bash
+# Generate today's standup update
+sprintos standup
+
+# Run a board health review
+sprintos review
+sprintos review --days 5             # tasks stale for 5+ days
+sprintos review --days 3 --notify   # also send email digest
+
+# Cron example (every morning at 9am)
+# 0 9 * * * /usr/local/bin/sprintos review --notify
+```
+
+**Example standup output:**
+```
+── Standup — Monday Jun 2 ─────────────────
+
+Yesterday:
+  ✓ [TaoFlow] #4 Set up CI pipeline
+
+Today:
+  → [TaoFlow] #5 Write unit tests for auth module
+
+Blockers:
+  none
+```
+
+---
+
+### 👥 My Tasks
+
+```bash
+# Show all tasks assigned to you across every project
+sprintos my-tasks
+```
+
+---
+
+### 🔔 Notifications
+
+```bash
+# Configure a Slack or Discord channel
+sprintos notify config
+# → enter: slack
+# → enter: https://hooks.slack.com/services/T.../B.../xxx
+
+# List configured channels
+sprintos notify list
+
+# Send a test notification to all channels
+sprintos notify test
+```
+
+**Events that trigger notifications:**
+- `task.created` — new task added
+- `task.moved` — task changes state
+- `task.completed` — task reaches a Done state
+- `task.assigned` — someone gets assigned
+- `comment.created` — comment added to a task
+- `@username` in comment — direct email to that user
+
+---
+
+### 🔗 GitHub Integration
+
+```bash
+# Connect a GitHub repo to a SprintOS project (one-time setup)
+sprintos github setup
+
+# List all connected repos
+sprintos github list
+
+# Start the webhook server (receives GitHub events)
+sprintos serve --port 8090
+
+# For local testing with ngrok
+ngrok http 8090
+# → use the ngrok URL as GitHub webhook URL
+```
+
+**GitHub webhook events handled:**
+
+| GitHub Event | SprintOS Action |
+|---|---|
+| PR opened | Task moves to "In Review" |
+| PR merged | Task moves to "Done" |
+| PR closed (no merge) | Task stays, no change |
+
+**Naming convention:** Include the task ID in your PR title or branch name:
+```
+"feat: TSK-42 Add rate limiting"
+feature/TSK-42-add-rate-limiting
+```
+
+---
+
+### 🌐 API Server
+
+```bash
+# Start the REST API + webhook server
+sprintos serve
+sprintos serve --port 8090
+
+# Generate an API key
+sprintos api-key create --name "my-ci-key"
+sprintos api-key create --name "zapier"
+
+# List API keys
+sprintos api-key list
+
+# Revoke an API key
+sprintos api-key revoke --id 3
+```
+
+---
+
+### 📁 Repository Init
+
+```bash
+# Initialize SprintOS in your current repo
+cd ~/myproject
+sprintos init
+# → creates .sprintos with your project ID
+
+# After init, no --project flag needed in any command
+sprintos task ls
+sprintos task create "Fix auth"
+```
+
+The `.sprintos` file is searched from the current directory upward, so it works from any subdirectory of your project.
+
+---
+
+### 🤝 Invitations & Team
+
+```bash
+# Invite a teammate (from org settings in TUI, or via email)
+# Press 'i' in org settings screen
+
+# Accept an invitation
+sprintos join --token abc123def456...
+```
+
+---
+
+### 🔧 Server & Webhooks
+
+```bash
+# Start the full server (REST API + GitHub webhooks)
+sprintos serve
+sprintos serve --port 8090
+
+# Endpoints available after starting:
+# REST API:        http://localhost:8090/api
+# GitHub webhook:  http://localhost:8090/webhooks/github
+# Health check:    http://localhost:8090/api/health
+# API docs:        http://localhost:8090/api/docs
+```
+
+---
+
+### 🐚 Shell Completion
+
+```bash
+# Bash
+sprintos completion bash > /usr/local/etc/bash_completion.d/sprintos
+
+# Zsh
+sprintos completion zsh > "${fpath[1]}/_sprintos"
+
+# After setup, tab completion works everywhere:
+sprintos <TAB>
+sprintos task <TAB>
+sprintos sprint <TAB>
+```
+
+---
+
+## 🌐 REST API
+
+All endpoints require `Authorization: Bearer <api-key>`.
+
+Rate limit: **60 requests per minute** per API key.
+
+### Authentication
+
+```bash
+# Generate a key
+sprintos api-key create --name "my-key"
+
+# Use in requests
+curl -H "Authorization: Bearer sk_abc123..." \
+     http://localhost:8090/api/projects
+```
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/health` | Health check (no auth) |
+| `GET` | `/api/docs` | OpenAPI spec (no auth) |
+| `GET` | `/api/projects` | List all projects |
+| `POST` | `/api/projects` | Create a project |
+| `GET` | `/api/tasks?project_id=1` | List tasks |
+| `GET` | `/api/tasks?project_id=1&state_id=2` | Filter by state |
+| `GET` | `/api/tasks?project_id=1&assignee_id=3` | Filter by assignee |
+| `POST` | `/api/tasks` | Create a task |
+| `GET` | `/api/tasks/:id` | Get task detail |
+| `PATCH` | `/api/tasks/:id` | Update a task |
+| `DELETE` | `/api/tasks/:id` | Delete a task |
+| `POST` | `/api/tasks/:id/move` | Move task to state |
+| `GET` | `/api/states?project_id=1` | List states for project |
+| `GET` | `/api/members` | List org members |
+| `GET` | `/api/webhooks` | List outbound webhooks |
+| `POST` | `/api/webhooks` | Register outbound webhook |
+| `DELETE` | `/api/webhooks/:id` | Delete webhook |
+
+### Examples
+
+```bash
+BASE=http://localhost:8090
+TOKEN="sk_your_key_here"
+AUTH="-H 'Authorization: Bearer $TOKEN'"
+
+# List projects
+curl -H "Authorization: Bearer $TOKEN" $BASE/api/projects
+
+# Create a task
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Fix bug","project_id":1,"state_id":1}' \
+  $BASE/api/tasks
+
+# Move a task
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"state_id":3}' \
+  $BASE/api/tasks/5/move
+
+# Register a Zapier webhook
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://hooks.zapier.com/hooks/catch/xyz","events":["task.moved","task.created"]}' \
+  $BASE/api/webhooks
+
+# Export tasks as JSON via API
+curl -H "Authorization: Bearer $TOKEN" \
+  "$BASE/api/tasks?project_id=1" | jq '.[].Title'
+```
+
+---
+
+## 🤖 AI & MCP Tools
+
+SprintOS exposes an MCP server that any AI agent (Claude, GPT, etc.) can connect to.
+
+### Setup
+
+```bash
+# Start the MCP server
+sprintos mcp
+
+# Or configure it in your AI tool automatically
+# In org settings → press 'm' → select your AI tool → install
+```
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_projects` | List all projects in the organization |
+| `create_project` | Create a project with states from a template |
+| `list_states` | List board columns for a project |
+| `list_tasks` | List all tasks including task IDs |
+| `get_task_detail` | Full task detail with comments |
+| `create_task` | Create a task with title, state, due date |
+| `update_task` | Edit title, description, or due date |
+| `delete_task` | Delete a task permanently |
+| `move_task` | Move task to a different state |
+| `assign_task` | Assign or unassign a team member |
+| `add_comment` | Add a comment to a task |
+| `list_members` | List all organization members |
+| `list_overdue_tasks` | All tasks past their due date |
+| `analyze_stale_tasks` | Find tasks stuck in a state with suggested actions |
+| `summarize_project` | Project health: counts, overdue, workload |
+| `generate_sprint` | Create multiple tasks from a JSON list |
+| `list_organizations` | List orgs the current user belongs to |
+
+### Example AI Prompts
+
+Once connected, your AI agent can:
+
+```
+"Generate a sprint for the TaoFlow project based on this PRD: [paste PRD]"
+
+"Which tasks in project 1 have been in the same state for more than 5 days?"
+
+"Create 5 tasks for the auth module and put them in backlog"
+
+"Show me the health summary for project 2"
+
+"Move task #15 to In Review and assign it to Miguel"
+```
+
+### Configuring in Claude Desktop
+
+The MCP setup screen (press `m` in org settings) auto-detects:
+- **Claude Desktop** — `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Cursor** — `~/.cursor/mcp.json`
+- **Windsurf** — `~/.codeium/windsurf/mcp_config.json`
+- **Zed** — `~/.config/zed/settings.json`
+
+It writes the correct config automatically. Restart your AI tool to activate.
+
+---
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+| Variable | Description |
 |----------|-------------|
-| **Bienvenida / Login** | Muestra las opciones de autenticación (GitHub / Google). |
-| **Crear organización** | Formulario que aparece solo si el usuario es nuevo (owner). |
-| **Dashboard / Proyectos** | Lista de proyectos de la organización. Permite crear, editar y seleccionar un proyecto. |
-| **Tablero de tareas (Kanban)** | Vista principal de un proyecto: columnas por estado, tareas dentro de cada columna. Permite moverse con el teclado. |
-| **Detalle de tarea** | Vista de lectura/edición de una tarea: ver descripción, añadir comentarios, cambiar estado, reasignar persona, editar fechas. |
-| **Gestión de estados** | Pantalla para crear, editar y eliminar estados de un proyecto. |
-| **Gestión de equipo** | Lista de miembros, opción de invitar y eliminar (solo owner). |
-| **Configuración de organización** | Editar nombre, descripción y número de WhatsApp (solo owner). |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `GITHUB_CLIENT_ID` | GitHub OAuth app client ID |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret |
+| `SMTP_HOST` | SMTP server hostname |
+| `SMTP_PORT` | SMTP port (usually 587) |
+| `SMTP_FROM` | From email address |
+| `SMTP_PASSWORD` | SMTP password or app password |
+| `EVOLUTION_API_URL` | WhatsApp Evolution API URL |
+| `EVOLUTION_API_TOKEN` | WhatsApp Evolution API token |
 
-**Navegación:** todo se maneja con el teclado. Flechas para moverse, Enter para seleccionar, Esc para volver, teclas de atajo visibles en cada pantalla.
+Create a `.env` file in your project root:
 
----
-
-## 9. Zona 8 — Notificaciones por WhatsApp
-
-**¿Qué hace?**
-Cuando un empleado mueve una tarea al estado **Done**, el sistema envía automáticamente un mensaje de WhatsApp al número del administrador de la organización.
-
-**Contenido del mensaje:**
-```
-✅ Tarea completada: [Título de la tarea]
-👤 Completada por: [Nombre del empleado]
-📝 Comentarios: [Últimos comentarios del empleado en la tarea]
-📅 Fecha: [Fecha y hora de completado]
+```env
+DATABASE_URL=postgres://user:password@host:5432/sprintos?sslmode=require
+GITHUB_CLIENT_ID=your_client_id
+GITHUB_CLIENT_SECRET=your_client_secret
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_FROM=you@gmail.com
+SMTP_PASSWORD=your_app_password
 ```
 
-**Tecnología:** Evolution API (servidor de WhatsApp self-hosted que expone una REST API). El programa realiza una llamada HTTP a esa API cuando detecta el cambio de estado a Done.
+### `.sprintos` Per-Repo Config
 
-**Configuración:** el número de WhatsApp del administrador se define en la configuración de la organización. La URL y token de la Evolution API se configuran en el archivo de configuración del programa (gestionado con Viper).
+Run `sprintos init` in any repository to create a `.sprintos` file:
 
----
+```json
+{
+  "project_id": 1,
+  "project_name": "TaoFlow",
+  "org_id": 1
+}
+```
 
-## 10. Zona 9 — MCP Local (Integración con IA)
-
-**¿Qué hace?**
-Expone un servidor MCP (Model Context Protocol) local que permite a cualquier agente de IA compatible (como Claude) crear tareas en el sistema de forma programática, sin necesidad de usar el TUI.
-
-**Uso típico:**
-El owner conecta su asistente de IA al servidor MCP local de CommandPM. Desde el chat del asistente puede pedirle, por ejemplo: *"Crea las tareas del sprint para el proyecto Alpha"* y el agente las crea directamente en el sistema.
-
-**Herramientas MCP que expone v1:**
-
-| Herramienta | Descripción |
-|-------------|-------------|
-| `create_task` | Crea una nueva tarea en un proyecto. |
-| `list_tasks` | Lista las tareas de un proyecto, opcionalmente filtradas por estado. |
-| `list_projects` | Lista los proyectos de la organización. |
-| `list_members` | Lista los miembros del equipo (para poder asignar tareas). |
-| `list_states` | Lista los estados disponibles de un proyecto. |
-
-**Cómo funciona:** el servidor MCP corre localmente en un puerto configurable. Se conecta a la misma base de datos SQLite que usa el TUI, por lo que los datos son siempre consistentes.
+Once this file exists, all task commands work without `--project` flags.
 
 ---
 
-## 11. Zona 10 — Infraestructura y Base de Datos
+## 🏗️ Self-Hosting
 
-**¿Qué hace?**
-Es la "fontanería" del programa: gestión de la base de datos, configuración, logs y migraciones.
+SprintOS uses PostgreSQL as its database. You can use any hosted PostgreSQL provider:
 
-**Base de datos:** SQLite. Un único archivo local. No requiere instalar ningún servidor externo. Ideal para uso en equipo pequeño o en una sola máquina.
+- [Supabase](https://supabase.com) — generous free tier
+- [Neon](https://neon.tech) — serverless PostgreSQL
+- [Railway](https://railway.app) — easy deploy
+- Your own server
 
-**Modelos principales:**
-- `User` (id, nombre, email, proveedor OAuth, rol, organización)
-- `Organization` (id, nombre, descripción, número WhatsApp)
-- `Project` (id, nombre, descripción, fecha inicio, organización)
-- `State` (id, nombre, color, orden, proyecto)
-- `Task` (id, título, descripción, estado, asignado, fechas, proyecto)
-- `Comment` (id, contenido, tarea, autor, fecha)
-- `TeamMember` (usuario, organización, rol)
+```bash
+# Connection string format
+DATABASE_URL=postgres://username:password@host:5432/dbname?sslmode=require
+```
 
-**Migraciones:** gestionadas con Goose. Al arrancar el programa, verifica si hay migraciones pendientes y las aplica automáticamente.
-
-**Configuración:** archivo `config.yaml` gestionado con Viper. Contiene: ruta de la base de datos, puerto del servidor MCP, URL y token de Evolution API.
-
-**Logging:** Zap para logs estructurados. En modo desarrollo se muestran en consola; en modo producción se escriben en archivo.
+The schema is created automatically on first run via GORM AutoMigrate.
 
 ---
 
-## 12. Stack Tecnológico
+## 🧩 Tech Stack
 
-| Tecnología | Rol en el proyecto |
-|------------|-------------------|
-| **Go** | Lenguaje principal |
-| **Bubble Tea** | Framework para la TUI interactiva |
-| **Lip Gloss** | Estilos visuales del TUI (colores, bordes, layout) |
-| **Bubbles** | Componentes reutilizables del TUI (listas, tablas, inputs, spinners) |
-| **Cobra** | Estructura de comandos CLI (`commandpm start`, `commandpm mcp`, etc.) |
-| **SQLite + GORM** | Base de datos local y ORM para Go |
-| **Goose** | Migraciones de base de datos |
-| **OAuth2 + Goth** | Autenticación con GitHub y Google |
-| **Viper** | Gestión de configuración (config.yaml + variables de entorno) |
-| **Zap** | Logging estructurado |
-| **Evolution API** | Envío de notificaciones por WhatsApp |
-| **MCP (Go SDK)** | Servidor MCP local para integración con agentes de IA |
-| **Testify** | Framework de testing |
+| Layer | Technology |
+|-------|-----------|
+| Language | Go 1.22 |
+| TUI | Bubble Tea + Lip Gloss + Bubbles |
+| CLI | Cobra |
+| Database | PostgreSQL + GORM |
+| Auth | GitHub OAuth via Goth |
+| MCP | mark3labs/mcp-go |
+| Email | net/smtp |
+| Config | Environment variables + ldflags |
 
 ---
 
-## 13. Tareas de Desarrollo — v1
+## 🤝 Contributing
 
-Las tareas están agrupadas por zona. El orden sugiere la secuencia de implementación recomendada.
+```bash
+git clone https://github.com/varmiguemunoz/sprintos
+cd sprintos
+cp .env.example .env   # fill in your values
+make build
+go run main.go start
+```
 
----
+### Available Make Commands
 
-### 🏗️ Infraestructura Base
-
-- [ ] Inicializar repositorio Go con estructura de carpetas (`cmd/`, `internal/`, `db/`, `config/`, `mcp/`)
-- [ ] Configurar Cobra con el comando principal `commandpm` y subcomandos `start` y `mcp`
-- [ ] Configurar Viper para leer `config.yaml` y variables de entorno
-- [ ] Configurar Zap para logging en desarrollo y producción
-- [ ] Crear la conexión a SQLite con GORM
-- [ ] Definir todos los modelos GORM (`User`, `Organization`, `Project`, `State`, `Task`, `Comment`, `TeamMember`)
-- [ ] Configurar Goose y escribir las migraciones iniciales para todos los modelos
-- [ ] Verificar y aplicar migraciones al arranque del programa
-
----
-
-### 🔐 Zona 1 — Autenticación
-
-- [ ] Configurar Goth con los proveedores GitHub y Google
-- [ ] Implementar el flujo OAuth2: abrir navegador, recibir callback, obtener token
-- [ ] Guardar la sesión del usuario en local (usando Viper o un archivo de sesión)
-- [ ] Crear lógica de detección de "primer login": si el usuario no existe en la BD, crearlo con rol `owner`
-- [ ] Crear lógica de sesión persistente: si ya hay sesión guardada, saltar el login
-- [ ] Implementar logout (comando `commandpm logout`)
+```bash
+make build       # Compile for local development
+make fmt         # Format all Go files
+make lint        # Run golangci-lint
+make tidy        # Clean go.mod and go.sum
+make check       # fmt + lint + build
+```
 
 ---
 
-### 🏢 Zona 2 — Organizaciones
+## 📄 License
 
-- [ ] Implementar `CreateOrganization` (nombre, descripción, número WhatsApp)
-- [ ] Implementar `UpdateOrganization` (solo owner)
-- [ ] Implementar `GetOrganization` (lectura de datos de la organización actual)
-- [ ] Validar que un owner solo puede tener una organización en v1
+MIT © [Miguel Angel Muñoz](https://github.com/varmiguemunoz)
 
 ---
 
-### 👥 Zona 3 — Equipo y Roles
+<div align="center">
 
-- [ ] Implementar `InviteMember`: buscar usuario por email y asociarlo a la organización con rol `user`
-- [ ] Implementar `RemoveMember`: desasociar un miembro de la organización (solo owner)
-- [ ] Implementar `ListMembers`: listar todos los miembros activos de la organización
-- [ ] Implementar middleware/guardia de roles: verificar rol antes de ejecutar acciones restringidas
+**Built with ❤️ for developers who live in the terminal**
 
----
+[⬆ Back to top](#-sprintos)
 
-### 📁 Zona 4 — Proyectos
-
-- [ ] Implementar `CreateProject` (nombre, descripción, fecha inicio, estados iniciales desde plantilla o personalizado)
-- [ ] Implementar `UpdateProject` (nombre, descripción)
-- [ ] Implementar `DeleteProject` (solo owner; elimina también sus estados y tareas)
-- [ ] Implementar `ListProjects` (todos los proyectos de la organización)
-- [ ] Implementar `GetProject` (detalle de un proyecto con sus estados)
-
----
-
-### 🏷️ Zona 5 — Estados y Plantillas
-
-- [ ] Definir el catálogo de plantillas en código (estructura de datos, no base de datos)
-- [ ] Implementar la plantilla "Estándar": Backlog, In Progress, In Review, Done
-- [ ] Implementar `CreateState` (nombre, color, orden, proyecto)
-- [ ] Implementar `UpdateState` (nombre, color, orden)
-- [ ] Implementar `DeleteState` (validar que no tenga tareas asociadas o reasignarlas)
-- [ ] Implementar `ListStates` de un proyecto ordenados por campo `orden`
-- [ ] Implementar `ApplyTemplate`: crear los estados de una plantilla en un proyecto nuevo
-
----
-
-### ✅ Zona 6 — Tareas
-
-- [ ] Implementar `CreateTask` (título, descripción, estado, asignado, fecha inicio, fecha fin, proyecto)
-- [ ] Implementar `UpdateTask` (todos los campos editables)
-- [ ] Implementar `DeleteTask` (solo owner)
-- [ ] Implementar `MoveTask`: cambiar el estado de una tarea
-- [ ] Implementar `AssignTask`: cambiar la persona asignada
-- [ ] Implementar `AddComment`: añadir un comentario a una tarea
-- [ ] Implementar `ListComments`: obtener todos los comentarios de una tarea
-- [ ] Implementar `ListTasks`: listar tareas de un proyecto, con filtro opcional por estado
-- [ ] Implementar `GetTask`: detalle completo de una tarea con sus comentarios
-- [ ] Implementar el disparador de notificación: detectar cuando una tarea pasa a estado Done y llamar al servicio de WhatsApp
-
----
-
-### 📱 Zona 8 — Notificaciones por WhatsApp
-
-- [ ] Implementar cliente HTTP para Evolution API
-- [ ] Implementar `SendWhatsAppNotification(phone, message string)` 
-- [ ] Construir el mensaje de notificación con los datos de la tarea completada
-- [ ] Integrar el envío en el flujo de `MoveTask` cuando el destino es el estado Done
-- [ ] Manejar errores de envío sin interrumpir el flujo principal (el fallo de notificación no debe bloquear la app)
-
----
-
-### 🤖 Zona 9 — Servidor MCP Local
-
-- [ ] Configurar el servidor MCP con el SDK de Go
-- [ ] Implementar la herramienta `list_projects`
-- [ ] Implementar la herramienta `list_states`
-- [ ] Implementar la herramienta `list_members`
-- [ ] Implementar la herramienta `list_tasks`
-- [ ] Implementar la herramienta `create_task`
-- [ ] Añadir autenticación básica al servidor MCP (token en config.yaml)
-- [ ] Crear el subcomando `commandpm mcp` que inicia el servidor MCP en el puerto configurado
-- [ ] Documentar cómo conectar el servidor MCP a Claude u otro agente compatible
-
----
-
-### 🖥️ Zona 7 — Interfaz TUI
-
-- [ ] Configurar el entrypoint de Bubble Tea y el modelo raíz de la aplicación
-- [ ] Implementar el sistema de navegación entre pantallas (router de vistas)
-- [ ] Diseñar y aplicar el tema visual global con Lip Gloss (colores, bordes, tipografía)
-- [ ] Implementar pantalla: **Bienvenida / Login** (selección de proveedor OAuth)
-- [ ] Implementar pantalla: **Crear organización** (formulario inicial para nuevos owners)
-- [ ] Implementar pantalla: **Lista de proyectos** (dashboard principal)
-- [ ] Implementar pantalla: **Tablero Kanban** (columnas por estado, navegación con teclado, mover tareas)
-- [ ] Implementar pantalla: **Detalle de tarea** (lectura, edición inline, comentarios, cambio de estado)
-- [ ] Implementar pantalla: **Gestión de estados** (crear, editar, eliminar estados de un proyecto)
-- [ ] Implementar pantalla: **Gestión de equipo** (lista de miembros, invitar, eliminar)
-- [ ] Implementar pantalla: **Configuración de organización** (solo owner)
-- [ ] Implementar barra de atajos de teclado visible en cada pantalla
-- [ ] Implementar mensajes de error y confirmación (modales o línea de estado)
-
----
-
-### 🧪 Testing
-
-- [ ] Configurar Testify en el proyecto
-- [ ] Tests unitarios para la capa de servicios (lógica de negocio de tareas, proyectos, estados)
-- [ ] Tests unitarios para la validación de roles
-- [ ] Tests de integración para los flujos principales (crear proyecto → crear tarea → mover a Done → notificación)
-- [ ] Tests unitarios para las herramientas MCP
-
----
-
-### 📦 Entrega y Documentación
-
-- [ ] Crear `README.md` con instrucciones de instalación, configuración y uso
-- [ ] Crear `config.example.yaml` con todos los campos comentados
-- [ ] Documentar cómo configurar los proveedores OAuth (GitHub App, Google OAuth)
-- [ ] Documentar cómo instalar y conectar Evolution API
-- [ ] Documentar cómo conectar el servidor MCP a un agente de IA
-- [ ] Crear script de instalación o instrucciones de build (`go build`)
+</div>

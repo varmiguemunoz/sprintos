@@ -9,7 +9,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/mark3labs/mcp-go v0.53.0
 	github.com/markbates/goth v1.82.0
-	github.com/spf13/cobra v0.0.3
+	github.com/spf13/cobra v1.10.2
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
 )

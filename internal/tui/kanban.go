@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -21,6 +22,7 @@ type KanbanModel struct {
 	moveCursor   int
 	selectedTask *domain.Task
 	deleting     bool
+	showHelp     bool
 	stateSvc     *app.StateService
 	taskSvc      *app.TaskService
 }
@@ -210,7 +212,7 @@ func (m KanbanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.deleting = true
 				}
 			}
-		case "n":
+		case "n", "+":
 			if len(m.states) > 0 {
 				stateID := m.states[m.colCursor].ID
 				project := m.project
@@ -218,6 +220,8 @@ func (m KanbanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return NavigateMsg{To: screenCreateTask, StateID: stateID, Project: project}
 				}
 			}
+		case "?":
+			m.showHelp = !m.showHelp
 		case "enter":
 			if len(m.states) > 0 {
 				stateID := m.states[m.colCursor].ID
@@ -229,6 +233,15 @@ func (m KanbanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return NavigateMsg{To: screenTaskDetail, Task: selected, Project: project}
 					}
 				}
+			}
+		case "v":
+			project := m.project
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenSprintView, Project: project}
+			}
+		case "/":
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenSearch}
 			}
 		case "b":
 			project := m.project
@@ -304,6 +317,24 @@ func (m KanbanModel) View() string {
 
 	board := lipgloss.JoinHorizontal(lipgloss.Top, columns...)
 
+	if m.showHelp {
+		help := titleStyle.Render("Keyboard Shortcuts - Kanban Board") + "\n\n"
+		help += selectedStyle.Render("Navigation") + "\n"
+		help += normalStyle.Render("  left/right   Move between columns") + "\n"
+		help += normalStyle.Render("  up/down      Move between tasks") + "\n\n"
+		help += selectedStyle.Render("Actions") + "\n"
+		help += normalStyle.Render("  enter        View task detail") + "\n"
+		help += normalStyle.Render("  n or +       Create new task in current column") + "\n"
+		help += normalStyle.Render("  m            Move task to another state") + "\n"
+		help += normalStyle.Render("  d            Delete task (asks confirmation)") + "\n"
+		help += normalStyle.Render("  b            Edit board layout") + "\n\n"
+		help += selectedStyle.Render("Other") + "\n"
+		help += normalStyle.Render("  ?            Toggle this help") + "\n"
+		help += normalStyle.Render("  esc          Back to projects") + "\n"
+		help += normalStyle.Render("  q            Quit") + "\n"
+		return header + "\n\n" + help
+	}
+
 	var footer string
 
 	if m.deleting && m.selectedTask != nil {
@@ -321,7 +352,7 @@ func (m KanbanModel) View() string {
 		}
 		footer += "\n" + normalStyle.Render("↑/↓ choose state  •  enter to confirm  •  esc to cancel")
 	} else {
-		footer = normalStyle.Render("←/→ columns  •  ↑/↓ tasks  •  enter view  •  m move  •  d delete  •  n new task  •  b edit board  •  esc back  •  q quit")
+		footer = normalStyle.Render("←/→ cols  •  ↑/↓ tasks  •  enter view  •  n new  •  m move  •  d delete  •  v sprints  •  / search  •  ? help  •  esc back")
 	}
 
 	return header + "\n\n" + board + "\n\n" + footer + "\n"
@@ -332,4 +363,29 @@ func truncate(s string, max int) string {
 		return s
 	}
 	return s[:max-1] + "…"
+}
+
+func dueDateIndicator(due *time.Time) string {
+	if due == nil {
+		return ""
+	}
+	now := time.Now()
+	if due.Before(now) {
+		return " " + lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444")).Render("✗")
+	}
+	if due.Before(now.Add(48 * time.Hour)) {
+		return " " + lipgloss.NewStyle().Foreground(lipgloss.Color("#F59E0B")).Render("⚠")
+	}
+	return ""
+}
+
+func priorityIndicator(priority string) string {
+	switch priority {
+	case "high":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#F97316")).Render("↑ ")
+	case "critical":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444")).Bold(true).Render("!! ")
+	default:
+		return ""
+	}
 }
