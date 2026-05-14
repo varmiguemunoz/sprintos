@@ -93,6 +93,10 @@ func (m OrgSettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "c":
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenConnections}
+			}
 		case "i":
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenInviteUser}

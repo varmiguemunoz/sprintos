@@ -103,6 +103,9 @@ func (m MCPSetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selected[m.cursor] = !m.selected[m.cursor]
 			}
 		case "enter":
+			if m.done {
+				return m, func() tea.Msg { return NavigateMsg{To: screenDashboard} }
+			}
 			if !m.done {
 				m.loading = true
 				return m, m.installCmd()

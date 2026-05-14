@@ -54,6 +54,7 @@ type BoardSetupModel struct {
 	activeField    boardField
 	project        domain.Project
 	isEditing      bool
+	isOnboarding   bool
 	loading        bool
 	err            error
 	stateSvc       *app.StateService
@@ -72,6 +73,7 @@ type ExistingStatesLoadedMsg struct {
 func NewBoardSetupModel(
 	project domain.Project,
 	isEditing bool,
+	isOnboarding bool,
 	stateSvc *app.StateService,
 	taskSvc *app.TaskService,
 ) BoardSetupModel {
@@ -81,12 +83,13 @@ func NewBoardSetupModel(
 	input.Focus()
 
 	m := BoardSetupModel{
-		project:    project,
-		isEditing:  isEditing,
-		templates:  app.ListTemplates(),
-		nameInput:  input,
-		stateSvc:   stateSvc,
-		taskSvc:    taskSvc,
+		project:      project,
+		isEditing:    isEditing,
+		isOnboarding: isOnboarding,
+		templates:    app.ListTemplates(),
+		nameInput:    input,
+		stateSvc:     stateSvc,
+		taskSvc:      taskSvc,
 	}
 
 	if isEditing {
@@ -184,6 +187,11 @@ func (m BoardSetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			m.err = msg.Err
 			return m, nil
+		}
+		if m.isOnboarding {
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenNotificationSetup}
+			}
 		}
 		project := m.project
 		return m, func() tea.Msg {

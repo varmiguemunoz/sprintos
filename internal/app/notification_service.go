@@ -174,3 +174,7 @@ func (s *NotificationService) TestAll(orgID uint) []string {
 	}
 	return results
 }
+
+func (s *NotificationService) DeleteConfig(id uint) error {
+	return s.db.Delete(&domain.NotificationConfig{}, id).Error
+}

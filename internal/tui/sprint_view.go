@@ -118,6 +118,11 @@ func (m SprintViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(m.sprints)-1 {
 				m.cursor++
 			}
+		case "c":
+			project := m.project
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenCreateSprintTUI, Project: project}
+			}
 		case "p":
 			m.planningMode = true
 			m.backlogCursor = 0
@@ -209,7 +214,7 @@ func (m SprintViewModel) View() string {
 		}
 	}
 
-	s += "\n" + normalStyle.Render("↑/↓ sprint  •  p planning mode  •  esc back  •  q quit") + "\n"
+	s += "\n" + normalStyle.Render("↑/↓ sprint  •  c create sprint  •  p planning mode  •  esc back  •  q quit") + "\n"
 	return s
 }
 

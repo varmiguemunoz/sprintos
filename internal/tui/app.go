@@ -31,16 +31,21 @@ const (
 	screenBoardSetup
 	screenSearch
 	screenSprintView
+	screenNotificationSetup
+	screenConnections
+	screenCreateSprintTUI
 )
 
 type NavigateMsg struct {
-	To       screen
-	GothUser *goth.User
-	Project  domain.Project
-	Org      domain.Organization
-	Task     domain.Task
-	StateID  uint
-	Editing  bool
+	To         screen
+	GothUser   *goth.User
+	Project    domain.Project
+	Org        domain.Organization
+	Task       domain.Task
+	StateID    uint
+	Editing    bool
+	Onboarding bool
+	Sprint     domain.Sprint
 }
 
 type UserResolvedMsg struct {
@@ -59,11 +64,13 @@ type AppModel struct {
 	taskSvc      *app.TaskService
 	teamSvc      *app.TeamService
 	sprintSvc    *app.SprintService
+	notifSvc     *app.NotificationService
 	commentSvc    *app.CommentService
 	invitationSvc *app.InvitationService
 	currentUser   *domain.User
 	currentOrgID uint
 	currentOrg   *domain.Organization
+	isOnboarding bool
 }
 
 func (m AppModel) Init() tea.Cmd {
@@ -160,7 +167,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, editTask.Init()
 
 		case screenBoardSetup:
-			setup := NewBoardSetupModel(msg.Project, msg.Editing, m.stateSvc, m.taskSvc)
+			setup := NewBoardSetupModel(msg.Project, msg.Editing, m.isOnboarding, m.stateSvc, m.taskSvc)
 			m.currentModel = setup
 			m.activeScreen = screenBoardSetup
 			return m, setup.Init()
@@ -198,6 +205,24 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.activeScreen = screenSprintView
 			return m, sv.Init()
 
+		case screenNotificationSetup:
+			ns := NewNotificationSetupModel(m.currentOrgID, m.notifSvc)
+			m.currentModel = ns
+			m.activeScreen = screenNotificationSetup
+			return m, ns.Init()
+
+		case screenConnections:
+			conn := NewConnectionsModel(m.currentOrgID, m.notifSvc)
+			m.currentModel = conn
+			m.activeScreen = screenConnections
+			return m, conn.Init()
+
+		case screenCreateSprintTUI:
+			cs := NewCreateSprintTUIModel(msg.Project, m.sprintSvc)
+			m.currentModel = cs
+			m.activeScreen = screenCreateSprintTUI
+			return m, cs.Init()
+
 		case screenSearch:
 			search := NewSearchModel(m.currentOrgID, m.projectSvc, m.taskSvc)
 			m.currentModel = search
@@ -205,6 +230,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, search.Init()
 
 		case screenMCPSetup:
+			m.isOnboarding = false
 			setup := NewMCPSetupModel()
 			m.currentModel = setup
 			m.activeScreen = screenMCPSetup
@@ -249,6 +275,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentOrgID = msg.OrgID
 
 		if msg.OrgID == 0 {
+			m.isOnboarding = true
 			createOrg := NewCreateOrgModel(m.currentUser.ID, m.orgSvc, m.teamSvc)
 			m.currentModel = createOrg
 			m.activeScreen = screenCreateOrg
@@ -286,6 +313,7 @@ func Start(db *gorm.DB) error {
 	teamSvc := app.NewTeamService(db)
 	commentSvc := app.NewCommentService(db)
 	sprintSvc := app.NewSprintService(db)
+	notifSvc := app.NewNotificationService(db)
 	invitationSvc := app.NewInvitationService(db)
 
 	startModel := tea.Model(NewLoginModel())
@@ -321,6 +349,7 @@ func Start(db *gorm.DB) error {
 		commentSvc:    commentSvc,
 		invitationSvc: invitationSvc,
 		sprintSvc:     sprintSvc,
+		notifSvc:      notifSvc,
 		currentUser:   startUser,
 		currentOrgID: startOrgID,
 		currentOrg:   startOrg,
