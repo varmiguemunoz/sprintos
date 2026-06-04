@@ -175,3 +175,47 @@ type StateTransition struct {
 	ChangedByID uint       `gorm:"not null"`
 	SecondsInFromState int64
 }
+
+type Subtask struct {
+	gorm.Model
+	Title       string  `gorm:"not null"`
+	Description *string
+	Done        bool    `gorm:"not null;default:false"`
+	TaskID      uint    `gorm:"not null"`
+	Task        Task
+	CreatedByID uint    `gorm:"not null"`
+	CreatedBy   User    `gorm:"foreignKey:CreatedByID"`
+}
+
+type SubtaskComment struct {
+	gorm.Model
+	Content   string  `gorm:"not null"`
+	SubtaskID uint    `gorm:"not null"`
+	Subtask   Subtask
+	AuthorID  uint    `gorm:"not null"`
+	Author    User    `gorm:"foreignKey:AuthorID"`
+}
+
+type TimeEntry struct {
+	gorm.Model
+	TaskID    *uint    `gorm:"index"`
+	Task      *Task    `gorm:"foreignKey:TaskID"`
+	SubtaskID *uint    `gorm:"index"`
+	Subtask   *Subtask `gorm:"foreignKey:SubtaskID"`
+	UserID    uint     `gorm:"not null"`
+	User      User
+	Minutes   int       `gorm:"not null"`
+	Note      *string
+	LoggedAt  time.Time `gorm:"not null"`
+}
+
+type ActiveTimer struct {
+	gorm.Model
+	UserID    uint      `gorm:"uniqueIndex;not null"`
+	User      User
+	TaskID    *uint     `gorm:"index"`
+	Task      *Task     `gorm:"foreignKey:TaskID"`
+	SubtaskID *uint     `gorm:"index"`
+	Subtask   *Subtask  `gorm:"foreignKey:SubtaskID"`
+	StartedAt time.Time `gorm:"not null"`
+}

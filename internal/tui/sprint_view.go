@@ -151,9 +151,8 @@ func (m SprintViewModel) View() string {
 
 	if len(m.sprints) == 0 {
 		s := header + "\n\n"
-		s += normalStyle.Render("No sprints yet.") + "\n"
-		s += normalStyle.Render("Create one: sprintos sprint create --name \"Sprint 1\" --project "+fmt.Sprintf("%d", m.project.ID)+" --start YYYY-MM-DD --end YYYY-MM-DD") + "\n\n"
-		s += normalStyle.Render("esc back  •  q quit") + "\n"
+		s += normalStyle.Render("No sprints yet. Press c to create a sprint") + "\n"
+		s += normalStyle.Render("esc back • c create • p plan mode • q quit") + "\n"
 		return s
 	}
 
@@ -214,7 +213,7 @@ func (m SprintViewModel) View() string {
 		}
 	}
 
-	s += "\n" + normalStyle.Render("↑/↓ sprint  •  c create sprint  •  p planning mode  •  esc back  •  q quit") + "\n"
+	s += "\n" + normalStyle.Render("↑/↓ sprint • c create sprint  • esc back  •  q quit") + "\n"
 	return s
 }
 

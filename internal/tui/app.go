@@ -34,18 +34,27 @@ const (
 	screenNotificationSetup
 	screenConnections
 	screenCreateSprintTUI
+	screenCreateSubtask
+	screenSubtaskDetail
+	screenEditSubtask
+	screenCreateSubtaskComment
+	screenEditSubtaskComment
+	screenCEODashboard
+	screenLogTime
 )
 
 type NavigateMsg struct {
-	To         screen
-	GothUser   *goth.User
-	Project    domain.Project
-	Org        domain.Organization
-	Task       domain.Task
-	StateID    uint
-	Editing    bool
-	Onboarding bool
-	Sprint     domain.Sprint
+	To             screen
+	GothUser       *goth.User
+	Project        domain.Project
+	Org            domain.Organization
+	Task           domain.Task
+	StateID        uint
+	Editing        bool
+	Onboarding     bool
+	Sprint         domain.Sprint
+	Subtask        domain.Subtask
+	SubtaskComment domain.SubtaskComment
 }
 
 type UserResolvedMsg struct {
@@ -64,9 +73,13 @@ type AppModel struct {
 	taskSvc      *app.TaskService
 	teamSvc      *app.TeamService
 	sprintSvc    *app.SprintService
-	notifSvc     *app.NotificationService
-	commentSvc    *app.CommentService
-	invitationSvc *app.InvitationService
+	notifSvc          *app.NotificationService
+	commentSvc         *app.CommentService
+	invitationSvc      *app.InvitationService
+	subtaskSvc         *app.SubtaskService
+	subtaskCommentSvc  *app.SubtaskCommentService
+	timeSvc            *app.TimeEntryService
+	dashboardSvc       *app.DashboardService
 	currentUser   *domain.User
 	currentOrgID uint
 	currentOrg   *domain.Organization
@@ -155,7 +168,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, edit.Init()
 
 		case screenTaskDetail:
-			detail := NewTaskDetailModel(msg.Task, msg.Project, m.taskSvc, m.commentSvc)
+			userID := uint(0)
+			if m.currentUser != nil {
+				userID = m.currentUser.ID
+			}
+			detail := NewTaskDetailModel(msg.Task, msg.Project, m.taskSvc, m.commentSvc, m.subtaskSvc, m.timeSvc, userID)
 			m.currentModel = detail
 			m.activeScreen = screenTaskDetail
 			return m, detail.Init()
@@ -223,6 +240,98 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.activeScreen = screenCreateSprintTUI
 			return m, cs.Init()
 
+		case screenCreateSubtask:
+			if m.currentUser != nil {
+				createSubtask := NewCreateSubtaskModel(
+					msg.Task,
+					msg.Project,
+					m.currentUser.ID,
+					m.subtaskSvc,
+				)
+				m.currentModel = createSubtask
+				m.activeScreen = screenCreateSubtask
+				return m, createSubtask.Init()
+			}
+
+		case screenSubtaskDetail:
+			userID := uint(0)
+			if m.currentUser != nil {
+				userID = m.currentUser.ID
+			}
+			subtaskDetail := NewSubtaskDetailModel(
+				msg.Subtask,
+				msg.Task,
+				msg.Project,
+				m.subtaskSvc,
+				m.subtaskCommentSvc,
+				m.timeSvc,
+				userID,
+			)
+			m.currentModel = subtaskDetail
+			m.activeScreen = screenSubtaskDetail
+			return m, subtaskDetail.Init()
+
+		case screenEditSubtask:
+			editSubtask := NewEditSubtaskModel(
+				msg.Subtask,
+				msg.Task,
+				msg.Project,
+				m.subtaskSvc,
+			)
+			m.currentModel = editSubtask
+			m.activeScreen = screenEditSubtask
+			return m, editSubtask.Init()
+
+		case screenCreateSubtaskComment:
+			if m.currentUser != nil {
+				createSubtaskComment := NewCreateSubtaskCommentModel(
+					msg.Subtask,
+					msg.Task,
+					msg.Project,
+					m.currentUser.ID,
+					m.subtaskCommentSvc,
+				)
+				m.currentModel = createSubtaskComment
+				m.activeScreen = screenCreateSubtaskComment
+				return m, createSubtaskComment.Init()
+			}
+
+		case screenEditSubtaskComment:
+			editSubtaskComment := NewEditSubtaskCommentModel(
+				msg.SubtaskComment,
+				msg.Subtask,
+				msg.Task,
+				msg.Project,
+				m.subtaskCommentSvc,
+			)
+			m.currentModel = editSubtaskComment
+			m.activeScreen = screenEditSubtaskComment
+			return m, editSubtaskComment.Init()
+
+		case screenCEODashboard:
+			ceo := NewCEODashboardModel(m.currentOrgID, m.dashboardSvc, m.projectSvc)
+			m.currentModel = ceo
+			m.activeScreen = screenCEODashboard
+			return m, ceo.Init()
+
+		case screenLogTime:
+			if m.currentUser != nil {
+				var taskPtr *domain.Task
+				var subtaskPtr *domain.Subtask
+				if msg.Task.ID != 0 {
+					t := msg.Task
+					taskPtr = &t
+				}
+				if msg.Subtask.ID != 0 {
+					st := msg.Subtask
+					subtaskPtr = &st
+				}
+				logTime := NewLogTimeModel(taskPtr, subtaskPtr, msg.Project, m.currentUser.ID, m.timeSvc)
+				m.currentModel = logTime
+				m.activeScreen = screenLogTime
+				return m, logTime.Init()
+			}
+
 		case screenSearch:
 			search := NewSearchModel(m.currentOrgID, m.projectSvc, m.taskSvc)
 			m.currentModel = search
@@ -287,10 +396,10 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentOrg = org
 		}
 
-		dashboard := NewDashboardModel(m.currentOrgID, m.projectSvc)
-		m.currentModel = dashboard
-		m.activeScreen = screenDashboard
-		return m, dashboard.Init()
+		ceo := NewCEODashboardModel(m.currentOrgID, m.dashboardSvc, m.projectSvc)
+		m.currentModel = ceo
+		m.activeScreen = screenCEODashboard
+		return m, ceo.Init()
 	}
 
 	updated, cmd := m.currentModel.Update(msg)
@@ -315,6 +424,10 @@ func Start(db *gorm.DB) error {
 	sprintSvc := app.NewSprintService(db)
 	notifSvc := app.NewNotificationService(db)
 	invitationSvc := app.NewInvitationService(db)
+	subtaskSvc := app.NewSubtaskService(db)
+	subtaskCommentSvc := app.NewSubtaskCommentService(db)
+	timeSvc := app.NewTimeEntryService(db)
+	dashboardSvc := app.NewDashboardService(db)
 
 	startModel := tea.Model(NewLoginModel())
 	startOrgID := uint(0)
@@ -330,7 +443,7 @@ func Start(db *gorm.DB) error {
 			if orgErr == nil {
 				startOrgID = org.ID
 				startOrg = org
-				startModel = NewDashboardModel(startOrgID, projectSvc)
+				startModel = NewCEODashboardModel(startOrgID, dashboardSvc, projectSvc)
 			} else {
 				startModel = NewCreateOrgModel(user.ID, orgSvc, teamSvc)
 			}
@@ -338,21 +451,25 @@ func Start(db *gorm.DB) error {
 	}
 
 	model := AppModel{
-		activeScreen: screenLogin,
-		currentModel: startModel,
-		userSvc:      userSvc,
-		orgSvc:       orgSvc,
-		projectSvc:   projectSvc,
-		stateSvc:     stateSvc,
-		taskSvc:      taskSvc,
-		teamSvc:      teamSvc,
-		commentSvc:    commentSvc,
-		invitationSvc: invitationSvc,
-		sprintSvc:     sprintSvc,
-		notifSvc:      notifSvc,
-		currentUser:   startUser,
-		currentOrgID: startOrgID,
-		currentOrg:   startOrg,
+		activeScreen:      screenLogin,
+		currentModel:      startModel,
+		userSvc:           userSvc,
+		orgSvc:            orgSvc,
+		projectSvc:        projectSvc,
+		stateSvc:          stateSvc,
+		taskSvc:           taskSvc,
+		teamSvc:           teamSvc,
+		commentSvc:        commentSvc,
+		invitationSvc:     invitationSvc,
+		sprintSvc:         sprintSvc,
+		notifSvc:          notifSvc,
+		subtaskSvc:        subtaskSvc,
+		subtaskCommentSvc: subtaskCommentSvc,
+		timeSvc:           timeSvc,
+		dashboardSvc:      dashboardSvc,
+		currentUser:       startUser,
+		currentOrgID:      startOrgID,
+		currentOrg:        startOrg,
 	}
 
 	p := tea.NewProgram(model, tea.WithAltScreen())

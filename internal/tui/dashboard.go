@@ -17,6 +17,7 @@ type DashboardModel struct {
 	deleting        bool
 	selectedProject *domain.Project
 	showHelp        bool
+	windowWidth     int
 	projectSvc      *app.ProjectService
 }
 
@@ -31,9 +32,10 @@ type ProjectDeletedMsg struct {
 
 func NewDashboardModel(orgID uint, projectSvc *app.ProjectService) DashboardModel {
 	return DashboardModel{
-		loading:    true,
-		orgID:      orgID,
-		projectSvc: projectSvc,
+		loading:     true,
+		orgID:       orgID,
+		windowWidth: 90,
+		projectSvc:  projectSvc,
 	}
 }
 
@@ -69,6 +71,10 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+
+	case tea.WindowSizeMsg:
+		m.windowWidth = msg.Width
+		return m, nil
 
 	case ProjectsLoadedMsg:
 		if msg.Err != nil {
@@ -132,7 +138,7 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenSearch}
 			}
-		case "?": 
+		case "?":
 			m.showHelp = !m.showHelp
 		case "s":
 			return m, func() tea.Msg {
@@ -156,35 +162,81 @@ func (m DashboardModel) View() string {
 			normalStyle.Render("Loading projects...") + "\n"
 	}
 
-	s := titleStyle.Render("SprintOS — Projects") + "\n\n"
+	w := m.windowWidth
+	if w < 60 {
+		w = 60
+	}
+	boxW := w - 4
 
-	if m.err != nil {
-		return s + errorStyle.Render(fmt.Sprintf("Error: %s", m.err.Error())) + "\n"
+	count := len(m.projects)
+	countLabel := ""
+	if count == 1 {
+		countLabel = dimStyle.Render("1 project")
+	} else if count > 1 {
+		countLabel = dimStyle.Render(fmt.Sprintf("%d projects", count))
 	}
 
+	header := titleStyle.Render("SprintOS — ") + valueStyle.Render("Projects")
+	if countLabel != "" {
+		header += "   " + countLabel
+	}
+
+	s := header + "\n"
+
+	if m.err != nil {
+		s += "\n" + errorStyle.Render(fmt.Sprintf("Error: %s", m.err.Error())) + "\n"
+		return s
+	}
+
+	s += "\n"
+
 	if len(m.projects) == 0 {
-		s += normalStyle.Render("No projects yet.") + "\n"
+		empty := dimStyle.Render("No projects yet — press ") +
+			hintKeyStyle.Render("n") +
+			dimStyle.Render(" to create your first one")
+		s += cardStyle.Width(boxW).Render(empty) + "\n"
 	} else {
 		for i, project := range m.projects {
+			style := cardStyle.Width(boxW)
+			prefix := dimStyle.Render(" · ")
+			nameStyle := normalStyle
+			descStyle := dimStyle
+
 			if i == m.cursor {
-				s += selectedStyle.Render(fmt.Sprintf("> %s", project.Name)) + "\n"
-			//	if project.Description != nil && *project.Description != "" {
-			//		s += normalStyle.Render(fmt.Sprintf("  %s", *project.Description)) + "\n"
-			// }
-			} else {
-				s += normalStyle.Render(fmt.Sprintf("  %s", project.Name)) + "\n"
-			//	if project.Description != nil && *project.Description != "" {
-			//		s += normalStyle.Render(fmt.Sprintf("  %s", *project.Description)) + "\n"
-			//	}
+				style = activeCardStyle.Width(boxW)
+				prefix = selectedStyle.Render(" ▶ ")
+				nameStyle = valueStyle
+				descStyle = normalStyle
 			}
+
+			cardContent := prefix + nameStyle.Render(project.Name)
+			if project.Description != nil && *project.Description != "" {
+				cardContent += "\n   " + descStyle.Render(truncate(*project.Description, boxW-6))
+			}
+
+			s += style.Render(cardContent) + "\n"
 		}
 	}
 
+	s += "\n"
+
 	if m.deleting && m.selectedProject != nil {
-		s += "\n" + errorStyle.Render(fmt.Sprintf("Delete '%s'? This cannot be undone.", m.selectedProject.Name)) + "\n"
-		s += normalStyle.Render("y to confirm  •  n / esc to cancel") + "\n"
+		warn := errorStyle.Render(fmt.Sprintf("⚠  Delete '%s'?", m.selectedProject.Name)) +
+			"\n" + dimStyle.Render("   This cannot be undone.")
+		s += cardStyle.Width(boxW).Render(warn) + "\n\n"
+		s += renderHintBar("y", "confirm", "n", "cancel", "esc", "cancel") + "\n"
 	} else {
-		s += "\n" + normalStyle.Render("↑/↓ move  •  enter open  •  n new  •  e edit  •  D delete  •  / search  •  s settings  •  ? help  •  q quit") + "\n"
+		s += renderHintBar(
+			"↑/↓", "move",
+			"enter", "open",
+			"n", "new",
+			"e", "edit",
+			"D", "delete",
+			"/", "search",
+			"s", "settings",
+			"?", "help",
+			"q", "quit",
+		) + "\n"
 	}
 
 	return s

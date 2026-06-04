@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,33 +9,31 @@ import (
 	"github.com/varmiguemunoz/sprintos/internal/domain"
 )
 
-type CreateTaskModel struct {
+type CreateSubtaskModel struct {
 	inputs      []textinput.Model
 	focused     int
 	loading     bool
 	err         error
-	stateID     uint
-	projectID   uint
-	createdByID uint
+	task        domain.Task
 	project     domain.Project
-	taskSvc     *app.TaskService
+	createdByID uint
+	subtaskSvc  *app.SubtaskService
 }
 
-type TaskCreatedMsg struct {
+type SubtaskCreatedMsg struct {
 	Err error
 }
 
-func NewCreateTaskModel(
-	stateID uint,
-	projectID uint,
-	createdByID uint,
+func NewCreateSubtaskModel(
+	task domain.Task,
 	project domain.Project,
-	taskSvc *app.TaskService,
-) CreateTaskModel {
-	inputs := make([]textinput.Model, 3)
+	createdByID uint,
+	subtaskSvc *app.SubtaskService,
+) CreateSubtaskModel {
+	inputs := make([]textinput.Model, 2)
 
 	inputs[0] = textinput.New()
-	inputs[0].Placeholder = "Task title"
+	inputs[0].Placeholder = "Subtask title"
 	inputs[0].CharLimit = 150
 	inputs[0].Focus()
 
@@ -44,72 +41,48 @@ func NewCreateTaskModel(
 	inputs[1].Placeholder = "Description (optional)"
 	inputs[1].CharLimit = 500
 
-	inputs[2] = textinput.New()
-	inputs[2].Placeholder = "Due date: YYYY-MM-DD (optional)"
-	inputs[2].CharLimit = 10
-
-	return CreateTaskModel{
+	return CreateSubtaskModel{
 		inputs:      inputs,
-		focused:     0,
-		stateID:     stateID,
-		projectID:   projectID,
-		createdByID: createdByID,
+		task:        task,
 		project:     project,
-		taskSvc:     taskSvc,
+		createdByID: createdByID,
+		subtaskSvc:  subtaskSvc,
 	}
 }
 
-func (m CreateTaskModel) submitCmd() tea.Cmd {
+func (m CreateSubtaskModel) submitCmd() tea.Cmd {
 	return func() tea.Msg {
 		title := m.inputs[0].Value()
 		description := m.inputs[1].Value()
-		dueDateStr := m.inputs[2].Value()
 
 		if title == "" {
-			return TaskCreatedMsg{Err: fmt.Errorf("title is required")}
+			return SubtaskCreatedMsg{Err: fmt.Errorf("subtask title is required")}
 		}
 
-		var dueDate *time.Time
-		if dueDateStr != "" {
-			parsed, err := time.Parse("2006-01-02", dueDateStr)
-			if err != nil {
-				return TaskCreatedMsg{Err: fmt.Errorf("invalid due date format, use YYYY-MM-DD")}
-			}
-			dueDate = &parsed
-		}
-
-		_, err := m.taskSvc.Create(
-			title,
-			description,
-			m.stateID,
-			m.projectID,
-			m.createdByID,
-			nil,
-			nil,
-			dueDate,
-		)
+		_, err := m.subtaskSvc.Create(title, description, m.task.ID, m.createdByID)
 		if err != nil {
-			return TaskCreatedMsg{Err: err}
+			return SubtaskCreatedMsg{Err: err}
 		}
 
-		return TaskCreatedMsg{}
+		return SubtaskCreatedMsg{}
 	}
 }
 
-func (m CreateTaskModel) Init() tea.Cmd {
+func (m CreateSubtaskModel) Init() tea.Cmd {
 	return textinput.Blink
 }
 
-func (m CreateTaskModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if msg, ok := msg.(TaskCreatedMsg); ok {
+func (m CreateSubtaskModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if msg, ok := msg.(SubtaskCreatedMsg); ok {
 		m.loading = false
 		if msg.Err != nil {
 			m.err = msg.Err
 			return m, nil
 		}
+		task := m.task
 		project := m.project
 		return m, func() tea.Msg {
-			return NavigateMsg{To: screenKanban, Project: project}
+			return NavigateMsg{To: screenTaskDetail, Task: task, Project: project}
 		}
 	}
 
@@ -123,9 +96,10 @@ func (m CreateTaskModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		case "esc":
+			task := m.task
 			project := m.project
 			return m, func() tea.Msg {
-				return NavigateMsg{To: screenKanban, Project: project}
+				return NavigateMsg{To: screenTaskDetail, Task: task, Project: project}
 			}
 		case "tab", "down":
 			m.inputs[m.focused].Blur()
@@ -154,15 +128,15 @@ func (m CreateTaskModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m CreateTaskModel) View() string {
+func (m CreateSubtaskModel) View() string {
 	if m.loading {
-		return titleStyle.Render("SprintOS — Create Task") +
-			"\n\n" + normalStyle.Render("Creating task...") + "\n"
+		return titleStyle.Render("SprintOS — Create Subtask") +
+			"\n\n" + normalStyle.Render("Saving...") + "\n"
 	}
 
-	labels := []string{"Title *", "Description", "Due Date"}
+	labels := []string{"Title *", "Description"}
 
-	s := titleStyle.Render("SprintOS — Create Task") + "\n\n"
+	s := titleStyle.Render(fmt.Sprintf("SprintOS — New Subtask for: %s", m.task.Title)) + "\n\n"
 
 	for i, label := range labels {
 		if i == m.focused {
@@ -177,6 +151,6 @@ func (m CreateTaskModel) View() string {
 		s += errorStyle.Render(fmt.Sprintf("Error: %s", m.err.Error())) + "\n\n"
 	}
 
-	s += normalStyle.Render("tab/↓ next field  •  shift+tab/↑ previous  •  enter to confirm  •  esc to cancel") + "\n"
+	s += normalStyle.Render("tab/↓ next  •  shift+tab/↑ previous  •  enter save  •  esc back") + "\n"
 	return s
 }
