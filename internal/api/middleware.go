@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/varmiguemunoz/sprintos/internal/domain"
+	"github.com/varmiguemunoz/sprintos/internal/infrastructure/auth"
 )
 
 type contextKey string
@@ -52,6 +53,42 @@ type bucket struct {
 }
 
 var limiter = &rateLimiter{buckets: make(map[uint]*bucket)}
+
+func (s *Server) trayAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := r.Header.Get("X-Tray-Token")
+		if token == "" || token != s.internalToken {
+			Error(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
+		session, err := auth.LoadSession()
+		if err != nil {
+			Error(w, http.StatusUnauthorized, "no active session — please log in via sprintos start")
+			return
+		}
+
+		user, err := s.userSvc.GetByEmail(session.Email)
+		if err != nil {
+			Error(w, http.StatusUnauthorized, "user not found")
+			return
+		}
+
+		org, err := s.orgSvc.GetByOwnerID(user.ID)
+		if err != nil {
+			Error(w, http.StatusUnauthorized, "organisation not found")
+			return
+		}
+
+		syntheticKey := &domain.APIKey{
+			UserID: user.ID,
+			OrgID:  org.ID,
+		}
+
+		ctx := context.WithValue(r.Context(), keyCtx, syntheticKey)
+		next(w, r.WithContext(ctx))
+	}
+}
 
 func (s *Server) rateLimit(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

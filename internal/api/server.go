@@ -9,26 +9,32 @@ import (
 )
 
 type Server struct {
-	db              *gorm.DB
-	taskSvc         *app.TaskService
-	projectSvc      *app.ProjectService
-	stateSvc        *app.StateService
-	teamSvc         *app.TeamService
-	orgSvc          *app.OrganizationService
-	apiKeySvc       *app.APIKeyService
-	outboundSvc     *app.OutboundWebhookService
+	db            *gorm.DB
+	internalToken string
+	taskSvc       *app.TaskService
+	projectSvc    *app.ProjectService
+	stateSvc      *app.StateService
+	teamSvc       *app.TeamService
+	orgSvc        *app.OrganizationService
+	userSvc       *app.UserService
+	apiKeySvc     *app.APIKeyService
+	outboundSvc   *app.OutboundWebhookService
+	timeSvc       *app.TimeEntryService
 }
 
-func NewServer(db *gorm.DB) *Server {
+func NewServer(db *gorm.DB, internalToken string) *Server {
 	return &Server{
-		db:          db,
-		taskSvc:     app.NewTaskService(db),
-		projectSvc:  app.NewProjectService(db),
-		stateSvc:    app.NewStateService(db),
-		teamSvc:     app.NewTeamService(db),
-		orgSvc:      app.NewOrganizationService(db),
-		apiKeySvc:   app.NewAPIKeyService(db),
-		outboundSvc: app.NewOutboundWebhookService(db),
+		db:            db,
+		internalToken: internalToken,
+		taskSvc:       app.NewTaskService(db),
+		projectSvc:    app.NewProjectService(db),
+		stateSvc:      app.NewStateService(db),
+		teamSvc:       app.NewTeamService(db),
+		orgSvc:        app.NewOrganizationService(db),
+		userSvc:       app.NewUserService(db),
+		apiKeySvc:     app.NewAPIKeyService(db),
+		outboundSvc:   app.NewOutboundWebhookService(db),
+		timeSvc:       app.NewTimeEntryService(db),
 	}
 }
 
@@ -48,6 +54,13 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/webhooks", s.auth(s.rateLimit(s.listWebhooks)))
 	mux.HandleFunc("POST /api/webhooks", s.auth(s.rateLimit(s.createWebhook)))
 	mux.HandleFunc("DELETE /api/webhooks/{id}", s.auth(s.rateLimit(s.deleteWebhook)))
+
+	mux.HandleFunc("GET /api/tray/tasks", s.trayAuth(s.trayListAllTasks))
+	mux.HandleFunc("GET /api/tray/projects", s.trayAuth(s.trayListProjects))
+	mux.HandleFunc("GET /api/tray/projects/{id}/tasks", s.trayAuth(s.trayListTasks))
+	mux.HandleFunc("POST /api/tray/timer/start", s.trayAuth(s.trayStartTimer))
+	mux.HandleFunc("POST /api/tray/timer/stop", s.trayAuth(s.trayStopTimer))
+	mux.HandleFunc("GET /api/tray/timer/active", s.trayAuth(s.trayGetActiveTimer))
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

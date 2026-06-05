@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gen2brain/beeep"
 	"github.com/varmiguemunoz/sprintos/internal/app"
 	"github.com/varmiguemunoz/sprintos/internal/domain"
 )
@@ -131,6 +132,7 @@ func (m TaskDetailModel) toggleTimerCmd() tea.Cmd {
 		if err != nil {
 			return TaskTimerToggledMsg{Err: err}
 		}
+		_ = beeep.Notify("SprintOS", "Timer started — "+m.task.Title, "")
 		return TaskTimerToggledMsg{ActiveTimer: timer}
 	}
 }

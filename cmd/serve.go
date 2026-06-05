@@ -23,7 +23,7 @@ var serveCmd = &cobra.Command{
 
 		githubHandler := webhook.NewGitHubHandler(githubSvc, taskSvc, orgSvc)
 
-		apiServer := api.NewServer(DB)
+		apiServer := api.NewServer(DB, "")
 
 		mux := http.NewServeMux()
 

@@ -96,7 +96,7 @@ func (s *TimeEntryService) stopAndSaveExistingTimer(userID uint) (*domain.TimeEn
 		return nil, fmt.Errorf("could not save time entry: %w", err)
 	}
 
-	if err := s.db.Delete(&timer).Error; err != nil {
+	if err := s.db.Unscoped().Delete(&timer).Error; err != nil {
 		return nil, fmt.Errorf("could not delete active timer: %w", err)
 	}
 
