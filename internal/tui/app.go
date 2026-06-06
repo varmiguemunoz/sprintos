@@ -41,6 +41,7 @@ const (
 	screenEditSubtaskComment
 	screenCEODashboard
 	screenLogTime
+	screenExportReport
 )
 
 type NavigateMsg struct {
@@ -80,6 +81,7 @@ type AppModel struct {
 	subtaskCommentSvc  *app.SubtaskCommentService
 	timeSvc            *app.TimeEntryService
 	dashboardSvc       *app.DashboardService
+	reportSvc          *app.ReportService
 	currentUser   *domain.User
 	currentOrgID uint
 	currentOrg   *domain.Organization
@@ -332,6 +334,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, logTime.Init()
 			}
 
+		case screenExportReport:
+			export := NewExportReportModel(m.currentOrgID, m.reportSvc, m.projectSvc)
+			m.currentModel = export
+			m.activeScreen = screenExportReport
+			return m, export.Init()
+
 		case screenSearch:
 			search := NewSearchModel(m.currentOrgID, m.projectSvc, m.taskSvc)
 			m.currentModel = search
@@ -428,6 +436,7 @@ func Start(db *gorm.DB) error {
 	subtaskCommentSvc := app.NewSubtaskCommentService(db)
 	timeSvc := app.NewTimeEntryService(db)
 	dashboardSvc := app.NewDashboardService(db)
+	reportSvc := app.NewReportService(db)
 
 	startModel := tea.Model(NewLoginModel())
 	startOrgID := uint(0)
@@ -467,6 +476,7 @@ func Start(db *gorm.DB) error {
 		subtaskCommentSvc: subtaskCommentSvc,
 		timeSvc:           timeSvc,
 		dashboardSvc:      dashboardSvc,
+		reportSvc:         reportSvc,
 		currentUser:       startUser,
 		currentOrgID:      startOrgID,
 		currentOrg:        startOrg,

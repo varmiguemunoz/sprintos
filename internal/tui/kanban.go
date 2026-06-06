@@ -253,6 +253,10 @@ func (m KanbanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenSearch}
 			}
+		case "E":
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenExportReport}
+			}
 		case "b":
 			project := m.project
 			return m, func() tea.Msg {
@@ -346,6 +350,7 @@ func (m KanbanModel) View() string {
 			"d", "delete",
 			"v", "sprints",
 			"b", "board",
+			"E", "export",
 			"?", "help",
 			"esc", "back",
 		)
@@ -497,7 +502,8 @@ func (m KanbanModel) renderHelp() string {
 	s += labelStyle.Render("  n / +    ") + normalStyle.Render("Create new task in current column") + "\n"
 	s += labelStyle.Render("  m        ") + normalStyle.Render("Move task to another state") + "\n"
 	s += labelStyle.Render("  d        ") + normalStyle.Render("Delete task") + "\n"
-	s += labelStyle.Render("  b        ") + normalStyle.Render("Edit board layout") + "\n\n"
+	s += labelStyle.Render("  b        ") + normalStyle.Render("Edit board layout") + "\n"
+	s += labelStyle.Render("  E        ") + normalStyle.Render("Export PDF report") + "\n\n"
 
 	s += selectedStyle.Render("  Other") + "\n"
 	s += labelStyle.Render("  v        ") + normalStyle.Render("Sprint view") + "\n"
