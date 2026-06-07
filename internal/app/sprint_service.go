@@ -63,6 +63,43 @@ func (s *SprintService) GetActive(projectID uint) (*domain.Sprint, error) {
 	return &sprint, err
 }
 
+func (s *SprintService) Update(id uint, name, goal string, start, end time.Time) (*domain.Sprint, error) {
+	sprint, err := s.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	var g *string
+	if goal != "" {
+		g = &goal
+	}
+
+	sprint.Name = name
+	sprint.Goal = g
+	sprint.StartDate = start
+	sprint.EndDate = end
+
+	if err := s.db.Select("name", "goal", "start_date", "end_date").Save(sprint).Error; err != nil {
+		return nil, fmt.Errorf("could not update sprint: %w", err)
+	}
+
+	return sprint, nil
+}
+
+func (s *SprintService) Delete(id uint) error {
+	var sprint domain.Sprint
+	if err := s.db.First(&sprint, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("sprint %d not found", id)
+		}
+		return fmt.Errorf("error fetching sprint: %w", err)
+	}
+	if err := s.db.Delete(&sprint).Error; err != nil {
+		return fmt.Errorf("could not delete sprint: %w", err)
+	}
+	return nil
+}
+
 func (s *SprintService) AddTask(sprintID, taskID uint) error {
 	return s.db.Model(&domain.Task{}).Where("id = ?", taskID).Update("sprint_id", sprintID).Error
 }

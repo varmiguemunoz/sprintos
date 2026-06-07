@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/varmiguemunoz/sprintos/internal/app"
@@ -10,7 +11,8 @@ import (
 )
 
 type EditProjectModel struct {
-	inputs     []textinput.Model
+	nameInput  textinput.Model
+	descInput  textarea.Model
 	focused    int
 	loading    bool
 	saved      bool
@@ -24,23 +26,26 @@ type ProjectUpdatedMsg struct {
 }
 
 func NewEditProjectModel(project domain.Project, projectSvc *app.ProjectService) EditProjectModel {
-	inputs := make([]textinput.Model, 2)
+	ni := textinput.New()
+	ni.Placeholder = "Project name"
+	ni.CharLimit = 100
+	ni.SetValue(project.Name)
+	ni.Focus()
 
-	inputs[0] = textinput.New()
-	inputs[0].Placeholder = "Project name"
-	inputs[0].CharLimit = 100
-	inputs[0].SetValue(project.Name)
-	inputs[0].Focus()
-
-	inputs[1] = textinput.New()
-	inputs[1].Placeholder = "Description (optional)"
-	inputs[1].CharLimit = 200
+	ta := textarea.New()
+	ta.Placeholder = "Description (optional)"
+	ta.CharLimit = 500
+	ta.SetWidth(70)
+	ta.SetHeight(4)
+	ta.ShowLineNumbers = false
 	if project.Description != nil {
-		inputs[1].SetValue(*project.Description)
+		ta.SetValue(*project.Description)
 	}
 
 	return EditProjectModel{
-		inputs:     inputs,
+		nameInput:  ni,
+		descInput:  ta,
+		focused:    0,
 		project:    project,
 		projectSvc: projectSvc,
 	}
@@ -48,8 +53,8 @@ func NewEditProjectModel(project domain.Project, projectSvc *app.ProjectService)
 
 func (m EditProjectModel) saveCmd() tea.Cmd {
 	return func() tea.Msg {
-		name := m.inputs[0].Value()
-		description := m.inputs[1].Value()
+		name := m.nameInput.Value()
+		description := m.descInput.Value()
 
 		if name == "" {
 			return ProjectUpdatedMsg{Err: fmt.Errorf("project name is required")}
@@ -93,33 +98,71 @@ func (m EditProjectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "ctrl+c":
 			return m, tea.Quit
-		case "tab", "down":
-			m.inputs[m.focused].Blur()
-			m.focused = (m.focused + 1) % len(m.inputs)
-			m.inputs[m.focused].Focus()
+		case "ctrl+s":
+			m.loading = true
 			m.saved = false
-		case "shift+tab", "up":
-			m.inputs[m.focused].Blur()
-			m.focused--
-			if m.focused < 0 {
-				m.focused = len(m.inputs) - 1
+			return m, m.saveCmd()
+		case "tab":
+			m.saved = false
+			cmd := m.focusNext()
+			return m, cmd
+		case "shift+tab":
+			m.saved = false
+			cmd := m.focusPrev()
+			return m, cmd
+		case "up":
+			if m.focused != 1 {
+				m.saved = false
+				cmd := m.focusPrev()
+				return m, cmd
 			}
-			m.inputs[m.focused].Focus()
-			m.saved = false
+		case "down":
+			if m.focused != 1 {
+				m.saved = false
+				cmd := m.focusNext()
+				return m, cmd
+			}
 		case "enter":
-			if m.focused == len(m.inputs)-1 {
-				m.loading = true
-				return m, m.saveCmd()
+			if m.focused == 0 {
+				m.saved = false
+				cmd := m.focusNext()
+				return m, cmd
 			}
-			m.inputs[m.focused].Blur()
-			m.focused++
-			m.inputs[m.focused].Focus()
 		}
 	}
 
 	var cmd tea.Cmd
-	m.inputs[m.focused], cmd = m.inputs[m.focused].Update(msg)
+	switch m.focused {
+	case 0:
+		m.nameInput, cmd = m.nameInput.Update(msg)
+	case 1:
+		m.descInput, cmd = m.descInput.Update(msg)
+	}
 	return m, cmd
+}
+
+func (m *EditProjectModel) focusNext() tea.Cmd {
+	if m.focused == 0 {
+		m.nameInput.Blur()
+		m.focused = 1
+		return m.descInput.Focus()
+	}
+	m.descInput.Blur()
+	m.focused = 0
+	m.nameInput.Focus()
+	return nil
+}
+
+func (m *EditProjectModel) focusPrev() tea.Cmd {
+	if m.focused == 1 {
+		m.descInput.Blur()
+		m.focused = 0
+		m.nameInput.Focus()
+		return nil
+	}
+	m.nameInput.Blur()
+	m.focused = 1
+	return m.descInput.Focus()
 }
 
 func (m EditProjectModel) View() string {
@@ -128,27 +171,30 @@ func (m EditProjectModel) View() string {
 			"\n\n" + normalStyle.Render("Saving...") + "\n"
 	}
 
-	labels := []string{"Project name *", "Description"}
-
 	s := titleStyle.Render(fmt.Sprintf("SprintOS — Edit: %s", m.project.Name)) + "\n\n"
 
-	for i, label := range labels {
-		if i == m.focused {
-			s += selectedStyle.Render(label) + "\n"
-		} else {
-			s += normalStyle.Render(label) + "\n"
-		}
-		s += m.inputs[i].View() + "\n\n"
+	if m.focused == 0 {
+		s += selectedStyle.Render("Project name *") + "\n"
+	} else {
+		s += dimStyle.Render("Project name *") + "\n"
 	}
+	s += m.nameInput.View() + "\n\n"
+
+	if m.focused == 1 {
+		s += selectedStyle.Render("Description") + "\n"
+	} else {
+		s += dimStyle.Render("Description") + "\n"
+	}
+	s += m.descInput.View() + "\n\n"
 
 	if m.err != nil {
 		s += errorStyle.Render(fmt.Sprintf("Error: %s", m.err.Error())) + "\n\n"
 	}
 
 	if m.saved {
-		s += selectedStyle.Render("✓ Project updated successfully") + "\n\n"
+		s += successStyle.Render("✓ Project updated successfully") + "\n\n"
 	}
 
-	s += normalStyle.Render("tab/↓ next field  •  shift+tab/↑ previous  •  enter to save  •  esc back") + "\n"
+	s += dimStyle.Render("tab next  •  shift+tab prev  •  ctrl+s save  •  esc back") + "\n"
 	return s
 }

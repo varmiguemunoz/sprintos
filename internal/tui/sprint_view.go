@@ -12,18 +12,20 @@ import (
 )
 
 type SprintViewModel struct {
-	project      domain.Project
-	sprints      []domain.Sprint
-	sprintTasks  map[uint][]domain.Task
-	cursor       int
-	loading      bool
-	planningMode bool
-	backlog      []domain.Task
-	backlogCursor int
-	err          error
-	sprintSvc    *app.SprintService
-	taskSvc      *app.TaskService
-	stateSvc     *app.StateService
+	project         domain.Project
+	sprints         []domain.Sprint
+	sprintTasks     map[uint][]domain.Task
+	cursor          int
+	loading         bool
+	planningMode    bool
+	deleting        bool
+	deletingSprint  *domain.Sprint
+	backlog         []domain.Task
+	backlogCursor   int
+	err             error
+	sprintSvc       *app.SprintService
+	taskSvc         *app.TaskService
+	stateSvc        *app.StateService
 }
 
 type SprintDataLoadedMsg struct {
@@ -31,6 +33,10 @@ type SprintDataLoadedMsg struct {
 	SprintTasks map[uint][]domain.Task
 	Backlog     []domain.Task
 	Err         error
+}
+
+type SprintDeletedMsg struct {
+	Err error
 }
 
 func NewSprintViewModel(project domain.Project, sprintSvc *app.SprintService, taskSvc *app.TaskService, stateSvc *app.StateService) SprintViewModel {
@@ -66,6 +72,13 @@ func (m SprintViewModel) loadCmd() tea.Cmd {
 	}
 }
 
+func (m SprintViewModel) deleteSprintCmd(id uint) tea.Cmd {
+	return func() tea.Msg {
+		err := m.sprintSvc.Delete(id)
+		return SprintDeletedMsg{Err: err}
+	}
+}
+
 func (m SprintViewModel) Init() tea.Cmd {
 	return m.loadCmd()
 }
@@ -83,8 +96,36 @@ func (m SprintViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if msg, ok := msg.(SprintDeletedMsg); ok {
+		m.deleting = false
+		m.deletingSprint = nil
+		if msg.Err != nil {
+			m.err = msg.Err
+			return m, nil
+		}
+		if m.cursor > 0 {
+			m.cursor--
+		}
+		m.loading = true
+		return m, m.loadCmd()
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if m.deleting {
+			switch msg.String() {
+			case "y", "Y":
+				if m.deletingSprint != nil {
+					id := m.deletingSprint.ID
+					return m, m.deleteSprintCmd(id)
+				}
+			case "n", "N", "esc":
+				m.deleting = false
+				m.deletingSprint = nil
+			}
+			return m, nil
+		}
+
 		if m.planningMode {
 			switch msg.String() {
 			case "esc":
@@ -123,6 +164,20 @@ func (m SprintViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenCreateSprintTUI, Project: project}
 			}
+		case "e":
+			if len(m.sprints) > 0 && m.cursor < len(m.sprints) {
+				sprint := m.sprints[m.cursor]
+				project := m.project
+				return m, func() tea.Msg {
+					return NavigateMsg{To: screenEditSprint, Sprint: sprint, Project: project}
+				}
+			}
+		case "D":
+			if len(m.sprints) > 0 && m.cursor < len(m.sprints) {
+				sp := m.sprints[m.cursor]
+				m.deletingSprint = &sp
+				m.deleting = true
+			}
 		case "p":
 			m.planningMode = true
 			m.backlogCursor = 0
@@ -152,7 +207,7 @@ func (m SprintViewModel) View() string {
 	if len(m.sprints) == 0 {
 		s := header + "\n\n"
 		s += normalStyle.Render("No sprints yet. Press c to create a sprint") + "\n"
-		s += normalStyle.Render("esc back • c create • p plan mode • q quit") + "\n"
+		s += renderHintBar("c", "create", "esc", "back", "q", "quit") + "\n"
 		return s
 	}
 
@@ -213,7 +268,25 @@ func (m SprintViewModel) View() string {
 		}
 	}
 
-	s += "\n" + normalStyle.Render("↑/↓ sprint • c create sprint  • esc back  •  q quit") + "\n"
+	s += "\n"
+
+	if m.deleting && m.deletingSprint != nil {
+		warn := errorStyle.Render(fmt.Sprintf("⚠  Delete sprint '%s'?", m.deletingSprint.Name)) +
+			"\n" + dimStyle.Render("   All tasks will be removed from this sprint.")
+		s += cardStyle.Render(warn) + "\n\n"
+		s += renderHintBar("y", "confirm", "n", "cancel", "esc", "cancel") + "\n"
+	} else {
+		s += renderHintBar(
+			"↑/↓", "select",
+			"c", "create",
+			"e", "edit",
+			"D", "delete",
+			"p", "plan",
+			"esc", "back",
+			"q", "quit",
+		) + "\n"
+	}
+
 	return s
 }
 

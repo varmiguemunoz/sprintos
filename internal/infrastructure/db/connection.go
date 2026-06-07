@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/varmiguemunoz/sprintos/internal/domain"
 	"gorm.io/driver/postgres"
@@ -9,15 +10,30 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func Connect(databaseURL string) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{
+func Connect(databaseURL string, forceMigrate bool) (*gorm.DB, error) {
+	database, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	err = db.AutoMigrate(
+	if err := configurePool(database); err != nil {
+		return nil, err
+	}
+
+	needsMigration := forceMigrate || !schemaExists(database)
+	if needsMigration {
+		if err := Migrate(database); err != nil {
+			return nil, fmt.Errorf("failed to run migrations: %w", err)
+		}
+	}
+
+	return database, nil
+}
+
+func Migrate(database *gorm.DB) error {
+	return database.AutoMigrate(
 		&domain.User{},
 		&domain.Organization{},
 		&domain.TeamMember{},
@@ -39,9 +55,20 @@ func Connect(databaseURL string) (*gorm.DB, error) {
 		&domain.TimeEntry{},
 		&domain.ActiveTimer{},
 	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to run migrations: %w", err)
-	}
+}
 
-	return db, nil
+func configurePool(database *gorm.DB) error {
+	sqlDB, err := database.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get sql.DB: %w", err)
+	}
+	sqlDB.SetMaxOpenConns(5)
+	sqlDB.SetMaxIdleConns(2)
+	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+	sqlDB.SetConnMaxIdleTime(2 * time.Minute)
+	return nil
+}
+
+func schemaExists(database *gorm.DB) bool {
+	return database.Migrator().HasTable(&domain.User{})
 }

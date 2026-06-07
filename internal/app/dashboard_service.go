@@ -1,6 +1,7 @@
 package app
 
 import (
+	"sync"
 	"time"
 
 	"github.com/varmiguemunoz/sprintos/internal/domain"
@@ -70,25 +71,76 @@ func (s *DashboardService) GetMetrics(orgID uint, projectID *uint) (*DashboardMe
 		return metrics, nil
 	}
 
-	var tasks []domain.Task
-	s.db.Preload("State").Preload("Assignee").
+	var taskCount int64
+	s.db.Model(&domain.Task{}).
 		Where("project_id IN ? AND deleted_at IS NULL", projectIDs).
-		Find(&tasks)
+		Count(&taskCount)
+	metrics.HasAnyData = taskCount > 0
 
-	metrics.HasAnyData = len(tasks) > 0
+	var (
+		weeklyThroughput   int
+		overdueCount       int
+		overdueTasks       []domain.Task
+		avgCycleTimeDays   float64
+		onTimeDeliveryRate float64
+		stateDistribution  []StateCount
+		teamWorkload       []MemberWorkload
+		recentlyCompleted  []domain.Task
+		velocities         []SprintVelocity
+		hasSprints         bool
+		sprintRate         float64
+		activeSprintName   string
+	)
 
-	metrics.WeeklyThroughput = s.weeklyThroughput(projectIDs)
-	metrics.OverdueCount, metrics.OverdueTasks = s.overdueTasks(projectIDs)
-	metrics.AvgCycleTimeDays = s.avgCycleTimeDays(projectIDs)
-	metrics.OnTimeDeliveryRate = s.onTimeDeliveryRate(projectIDs)
-	metrics.StateDistribution = s.stateDistribution(projectIDs)
-	metrics.TeamWorkload = s.teamWorkload(projectIDs)
-	metrics.RecentlyCompleted = s.recentlyCompleted(projectIDs)
+	var wg sync.WaitGroup
+	wg.Add(8)
 
-	sprints, hasSprints, sprintRate, activeSprintName := s.sprintMetrics(projectIDs)
+	go func() {
+		defer wg.Done()
+		weeklyThroughput = s.weeklyThroughput(projectIDs)
+	}()
+	go func() {
+		defer wg.Done()
+		overdueCount, overdueTasks = s.overdueTasks(projectIDs)
+	}()
+	go func() {
+		defer wg.Done()
+		avgCycleTimeDays = s.avgCycleTimeDays(projectIDs)
+	}()
+	go func() {
+		defer wg.Done()
+		onTimeDeliveryRate = s.onTimeDeliveryRate(projectIDs)
+	}()
+	go func() {
+		defer wg.Done()
+		stateDistribution = s.stateDistribution(projectIDs)
+	}()
+	go func() {
+		defer wg.Done()
+		teamWorkload = s.teamWorkload(projectIDs)
+	}()
+	go func() {
+		defer wg.Done()
+		recentlyCompleted = s.recentlyCompleted(projectIDs)
+	}()
+	go func() {
+		defer wg.Done()
+		velocities, hasSprints, sprintRate, activeSprintName = s.sprintMetrics(projectIDs)
+	}()
+
+	wg.Wait()
+
+	metrics.WeeklyThroughput = weeklyThroughput
+	metrics.OverdueCount = overdueCount
+	metrics.OverdueTasks = overdueTasks
+	metrics.AvgCycleTimeDays = avgCycleTimeDays
+	metrics.OnTimeDeliveryRate = onTimeDeliveryRate
+	metrics.StateDistribution = stateDistribution
+	metrics.TeamWorkload = teamWorkload
+	metrics.RecentlyCompleted = recentlyCompleted
+	metrics.VelocityTrend = velocities
 	metrics.HasSprints = hasSprints
 	metrics.SprintCompletionRate = sprintRate
-	metrics.VelocityTrend = sprints
 	metrics.ActiveSprintName = activeSprintName
 
 	return metrics, nil
@@ -222,6 +274,32 @@ func (s *DashboardService) sprintMetrics(projectIDs []uint) ([]SprintVelocity, b
 		return nil, false, 0, ""
 	}
 
+	sprintIDs := make([]uint, len(sprints))
+	for i, sp := range sprints {
+		sprintIDs[i] = sp.ID
+	}
+
+	type sprintCount struct {
+		SprintID  uint
+		Total     int
+		Completed int
+	}
+	var counts []sprintCount
+	s.db.Raw(`
+		SELECT sprint_id,
+		       COUNT(*) AS total,
+		       COUNT(completed_at) AS completed
+		FROM tasks
+		WHERE sprint_id IN ?
+		  AND deleted_at IS NULL
+		GROUP BY sprint_id
+	`, sprintIDs).Scan(&counts)
+
+	countMap := make(map[uint]sprintCount, len(counts))
+	for _, c := range counts {
+		countMap[c.SprintID] = c
+	}
+
 	now := time.Now()
 	var velocities []SprintVelocity
 	var sprintRate float64
@@ -229,26 +307,18 @@ func (s *DashboardService) sprintMetrics(projectIDs []uint) ([]SprintVelocity, b
 
 	for i := len(sprints) - 1; i >= 0; i-- {
 		sp := sprints[i]
-		var total, completed int64
-
-		s.db.Model(&domain.Task{}).
-			Where("sprint_id = ? AND deleted_at IS NULL", sp.ID).
-			Count(&total)
-
-		s.db.Model(&domain.Task{}).
-			Where("sprint_id = ? AND completed_at IS NOT NULL AND deleted_at IS NULL", sp.ID).
-			Count(&completed)
+		c := countMap[sp.ID]
 
 		velocities = append(velocities, SprintVelocity{
 			SprintName: sp.Name,
-			Completed:  int(completed),
-			Total:      int(total),
+			Completed:  c.Completed,
+			Total:      c.Total,
 		})
 
 		if sp.StartDate.Before(now) && sp.EndDate.After(now) && sp.CompletedAt == nil {
 			activeSprintName = sp.Name
-			if total > 0 {
-				sprintRate = float64(completed) / float64(total) * 100
+			if c.Total > 0 {
+				sprintRate = float64(c.Completed) / float64(c.Total) * 100
 			}
 		}
 	}

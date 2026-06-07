@@ -23,6 +23,9 @@ type KanbanModel struct {
 	moveCursor   int
 	selectedTask *domain.Task
 	deleting     bool
+	reorderMode   bool
+	reorderStates []domain.State
+	reorderCursor int
 	showHelp     bool
 	windowWidth  int
 	windowHeight int
@@ -41,6 +44,10 @@ type TaskMovedMsg struct {
 }
 
 type TaskDeletedMsg struct {
+	Err error
+}
+
+type StatesReorderedMsg struct {
 	Err error
 }
 
@@ -88,6 +95,19 @@ func (m KanbanModel) deleteTaskCmd(taskID uint) tea.Cmd {
 			return TaskDeletedMsg{Err: err}
 		}
 		return TaskDeletedMsg{}
+	}
+}
+
+func (m KanbanModel) saveColumnOrderCmd() tea.Cmd {
+	states := make([]domain.State, len(m.reorderStates))
+	copy(states, m.reorderStates)
+	return func() tea.Msg {
+		for i, st := range states {
+			if _, err := m.stateSvc.Update(st.ID, st.Name, st.Color, uint(i+1), st.IsDone); err != nil {
+				return StatesReorderedMsg{Err: err}
+			}
+		}
+		return StatesReorderedMsg{}
 	}
 }
 
@@ -139,7 +159,42 @@ func (m KanbanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tasks = make(map[uint][]domain.Task)
 		return m, m.loadDataCmd()
 
+	case StatesReorderedMsg:
+		m.reorderMode = false
+		if msg.Err != nil {
+			m.err = msg.Err
+			return m, nil
+		}
+		m.loading = true
+		m.tasks = make(map[uint][]domain.Task)
+		return m, m.loadDataCmd()
+
 	case tea.KeyMsg:
+		if m.reorderMode {
+			switch msg.String() {
+			case "left", "h":
+				if m.reorderCursor > 0 {
+					m.reorderStates[m.reorderCursor], m.reorderStates[m.reorderCursor-1] =
+						m.reorderStates[m.reorderCursor-1], m.reorderStates[m.reorderCursor]
+					m.reorderCursor--
+				}
+			case "right", "l":
+				if m.reorderCursor < len(m.reorderStates)-1 {
+					m.reorderStates[m.reorderCursor], m.reorderStates[m.reorderCursor+1] =
+						m.reorderStates[m.reorderCursor+1], m.reorderStates[m.reorderCursor]
+					m.reorderCursor++
+				}
+			case "enter":
+				return m, m.saveColumnOrderCmd()
+			case "esc":
+				m.reorderMode = false
+				m.reorderStates = nil
+			case "ctrl+c", "q":
+				return m, tea.Quit
+			}
+			return m, nil
+		}
+
 		if m.deleting {
 			switch msg.String() {
 			case "y", "Y":
@@ -253,6 +308,13 @@ func (m KanbanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenSearch}
 			}
+		case "R":
+			if len(m.states) >= 2 {
+				m.reorderStates = make([]domain.State, len(m.states))
+				copy(m.reorderStates, m.states)
+				m.reorderCursor = m.colCursor
+				m.reorderMode = true
+			}
 		case "E":
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenExportReport}
@@ -308,34 +370,52 @@ func (m KanbanModel) View() string {
 		availH = 12
 	}
 
-	numCols := len(m.states)
+	displayStates := m.states
+	activeIdx := m.colCursor
+	if m.reorderMode {
+		displayStates = m.reorderStates
+		activeIdx = m.reorderCursor
+	}
+
+	numCols := len(displayStates)
 	colContentW := (availW - numCols*5 + 1) / numCols
 	if colContentW < 18 {
 		colContentW = 18
 	}
 
-	// availH - 2 (header+blank) - 2 (blank+footer) - 2 (col top+bottom border) = col content height
 	colContentH := availH - 6
+	if m.reorderMode {
+		colContentH = availH - 8
+	}
 	if colContentH < 6 {
 		colContentH = 6
 	}
 
 	maxColTasks := 1
-	for _, state := range m.states {
+	for _, state := range displayStates {
 		if n := len(m.tasks[state.ID]); n > maxColTasks {
 			maxColTasks = n
 		}
 	}
 
 	columns := make([]string, numCols)
-	for i, state := range m.states {
-		columns[i] = m.renderColumn(state, i, colContentW, colContentH, maxColTasks)
+	for i, state := range displayStates {
+		isDragging := m.reorderMode && i == m.reorderCursor
+		columns[i] = m.renderColumn(state, i, colContentW, colContentH, maxColTasks, activeIdx, isDragging)
 	}
 
 	board := lipgloss.JoinHorizontal(lipgloss.Top, columns...)
 
+	var banner string
+	if m.reorderMode {
+		banner = "\n" + warningStyle.Render("⠿  REORDER MODE") + "  " +
+			dimStyle.Render("←/→ move column  •  enter save  •  esc cancel") + "\n"
+	}
+
 	var footer string
-	if m.deleting && m.selectedTask != nil {
+	if m.reorderMode {
+		footer = renderHintBar("←/→", "move column", "enter", "save", "esc", "cancel")
+	} else if m.deleting && m.selectedTask != nil {
 		warn := errorStyle.Render(fmt.Sprintf("⚠  Delete '%s'?", truncate(m.selectedTask.Title, 40))) +
 			"\n" + dimStyle.Render("   This cannot be undone.")
 		footer = cardStyle.Render(warn) + "\n" +
@@ -348,6 +428,7 @@ func (m KanbanModel) View() string {
 			"n", "new",
 			"m", "move",
 			"d", "delete",
+			"R", "reorder",
 			"v", "sprints",
 			"b", "board",
 			"E", "export",
@@ -356,16 +437,18 @@ func (m KanbanModel) View() string {
 		)
 	}
 
-	return header + "\n\n" + board + "\n\n" + footer + "\n"
+	return header + banner + "\n" + board + "\n\n" + footer + "\n"
 }
 
-func (m KanbanModel) renderColumn(state domain.State, idx int, contentW int, contentH int, maxColTasks int) string {
+func (m KanbanModel) renderColumn(state domain.State, idx int, contentW int, contentH int, maxColTasks int, activeIdx int, isDragging bool) string {
 	tasks := m.tasks[state.ID]
 	cursor := m.taskCursor[state.ID]
-	isActive := idx == m.colCursor
+	isActive := idx == activeIdx
 
 	borderColor := lipgloss.Color("#374151")
-	if isActive {
+	if isDragging {
+		borderColor = lipgloss.Color("#F59E0B")
+	} else if isActive {
 		borderColor = lipgloss.Color("#7C3AED")
 	}
 
@@ -379,7 +462,9 @@ func (m KanbanModel) renderColumn(state domain.State, idx int, contentW int, con
 	stateNameStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(state.Color))
 
 	countStyle := dimStyle
-	if isActive {
+	if isDragging {
+		countStyle = warningStyle
+	} else if isActive {
 		countStyle = selectedStyle
 	}
 	if state.IsDone {
@@ -399,7 +484,9 @@ func (m KanbanModel) renderColumn(state domain.State, idx int, contentW int, con
 	}
 
 	barFillStyle := dimStyle
-	if isActive {
+	if isDragging {
+		barFillStyle = warningStyle
+	} else if isActive {
 		barFillStyle = selectedStyle
 	}
 	if state.IsDone {
@@ -503,6 +590,7 @@ func (m KanbanModel) renderHelp() string {
 	s += labelStyle.Render("  m        ") + normalStyle.Render("Move task to another state") + "\n"
 	s += labelStyle.Render("  d        ") + normalStyle.Render("Delete task") + "\n"
 	s += labelStyle.Render("  b        ") + normalStyle.Render("Edit board layout") + "\n"
+	s += labelStyle.Render("  R        ") + normalStyle.Render("Reorder columns (drag with ←/→, enter to save)") + "\n"
 	s += labelStyle.Render("  E        ") + normalStyle.Render("Export PDF report") + "\n\n"
 
 	s += selectedStyle.Render("  Other") + "\n"

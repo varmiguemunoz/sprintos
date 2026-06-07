@@ -130,6 +130,10 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selectedProject = &p
 				m.deleting = true
 			}
+		case "d":
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenCEODashboard}
+			}
 		case "n":
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenCreateProject}
@@ -232,6 +236,7 @@ func (m DashboardModel) View() string {
 			"n", "new",
 			"e", "edit",
 			"D", "delete",
+			"d", "dashboard",
 			"/", "search",
 			"s", "settings",
 			"?", "help",

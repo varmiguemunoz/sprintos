@@ -42,6 +42,7 @@ const (
 	screenCEODashboard
 	screenLogTime
 	screenExportReport
+	screenEditSprint
 )
 
 type NavigateMsg struct {
@@ -174,7 +175,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentUser != nil {
 				userID = m.currentUser.ID
 			}
-			detail := NewTaskDetailModel(msg.Task, msg.Project, m.taskSvc, m.commentSvc, m.subtaskSvc, m.timeSvc, userID)
+			detail := NewTaskDetailModel(msg.Task, msg.Project, m.taskSvc, m.commentSvc, m.subtaskSvc, m.timeSvc, m.stateSvc, userID)
 			m.currentModel = detail
 			m.activeScreen = screenTaskDetail
 			return m, detail.Init()
@@ -333,6 +334,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.activeScreen = screenLogTime
 				return m, logTime.Init()
 			}
+
+		case screenEditSprint:
+			editSprint := NewEditSprintModel(msg.Sprint, msg.Project, m.sprintSvc)
+			m.currentModel = editSprint
+			m.activeScreen = screenEditSprint
+			return m, editSprint.Init()
 
 		case screenExportReport:
 			export := NewExportReportModel(m.currentOrgID, m.reportSvc, m.projectSvc)

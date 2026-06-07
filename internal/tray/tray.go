@@ -414,6 +414,7 @@ func (t *trayApp) updateTimerStatus() {
 			t.mStartTimer.Enable()
 			t.mStopTimer.Disable()
 			t.mTimerStatus.SetTitle("Status: Stopped")
+			t.mCurrentTask.SetTitle("No task selected")
 			systray.SetTitle("")
 		} else if !wasInitialized {
 			t.mTimerStatus.SetTitle("Status: Stopped")
@@ -426,11 +427,17 @@ func (t *trayApp) updateTimerStatus() {
 	t.timerRunning = true
 	t.timerTaskID = status.TaskID
 	t.initialized = true
+	taskChanged := !wasRunning || prevTaskID != status.TaskID
+	if taskChanged {
+		t.selectedTaskID = status.TaskID
+		t.selectedTaskTitle = status.TaskTitle
+	}
 	t.mu.Unlock()
 
-	if !wasRunning || prevTaskID != status.TaskID {
+	if taskChanged {
 		t.mStartTimer.Disable()
 		t.mStopTimer.Enable()
+		t.mCurrentTask.SetTitle("Task: " + clampStr(status.TaskTitle, 40))
 	}
 
 	elapsed := time.Since(status.StartedAt)

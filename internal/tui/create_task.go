@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/varmiguemunoz/sprintos/internal/app"
@@ -11,15 +12,17 @@ import (
 )
 
 type CreateTaskModel struct {
-	inputs      []textinput.Model
-	focused     int
-	loading     bool
-	err         error
-	stateID     uint
-	projectID   uint
-	createdByID uint
-	project     domain.Project
-	taskSvc     *app.TaskService
+	titleInput   textinput.Model
+	descInput    textarea.Model
+	dueDateInput textinput.Model
+	focused      int
+	loading      bool
+	err          error
+	stateID      uint
+	projectID    uint
+	createdByID  uint
+	project      domain.Project
+	taskSvc      *app.TaskService
 }
 
 type TaskCreatedMsg struct {
@@ -33,37 +36,40 @@ func NewCreateTaskModel(
 	project domain.Project,
 	taskSvc *app.TaskService,
 ) CreateTaskModel {
-	inputs := make([]textinput.Model, 3)
+	ti := textinput.New()
+	ti.Placeholder = "Task title"
+	ti.CharLimit = 150
+	ti.Focus()
 
-	inputs[0] = textinput.New()
-	inputs[0].Placeholder = "Task title"
-	inputs[0].CharLimit = 150
-	inputs[0].Focus()
+	ta := textarea.New()
+	ta.Placeholder = "Description (optional)"
+	ta.CharLimit = 1000
+	ta.SetWidth(70)
+	ta.SetHeight(5)
+	ta.ShowLineNumbers = false
 
-	inputs[1] = textinput.New()
-	inputs[1].Placeholder = "Description (optional)"
-	inputs[1].CharLimit = 500
-
-	inputs[2] = textinput.New()
-	inputs[2].Placeholder = "Due date: YYYY-MM-DD (optional)"
-	inputs[2].CharLimit = 10
+	due := textinput.New()
+	due.Placeholder = "Due date: YYYY-MM-DD (optional)"
+	due.CharLimit = 10
 
 	return CreateTaskModel{
-		inputs:      inputs,
-		focused:     0,
-		stateID:     stateID,
-		projectID:   projectID,
-		createdByID: createdByID,
-		project:     project,
-		taskSvc:     taskSvc,
+		titleInput:   ti,
+		descInput:    ta,
+		dueDateInput: due,
+		focused:      0,
+		stateID:      stateID,
+		projectID:    projectID,
+		createdByID:  createdByID,
+		project:      project,
+		taskSvc:      taskSvc,
 	}
 }
 
 func (m CreateTaskModel) submitCmd() tea.Cmd {
 	return func() tea.Msg {
-		title := m.inputs[0].Value()
-		description := m.inputs[1].Value()
-		dueDateStr := m.inputs[2].Value()
+		title := m.titleInput.Value()
+		description := m.descInput.Value()
+		dueDateStr := m.dueDateInput.Value()
 
 		if title == "" {
 			return TaskCreatedMsg{Err: fmt.Errorf("title is required")}
@@ -127,31 +133,83 @@ func (m CreateTaskModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenKanban, Project: project}
 			}
-		case "tab", "down":
-			m.inputs[m.focused].Blur()
-			m.focused = (m.focused + 1) % len(m.inputs)
-			m.inputs[m.focused].Focus()
-		case "shift+tab", "up":
-			m.inputs[m.focused].Blur()
-			m.focused--
-			if m.focused < 0 {
-				m.focused = len(m.inputs) - 1
+		case "ctrl+s":
+			m.loading = true
+			return m, m.submitCmd()
+		case "tab":
+			cmd := m.focusNext()
+			return m, cmd
+		case "shift+tab":
+			cmd := m.focusPrev()
+			return m, cmd
+		case "up":
+			if m.focused != 1 {
+				cmd := m.focusPrev()
+				return m, cmd
 			}
-			m.inputs[m.focused].Focus()
+		case "down":
+			if m.focused != 1 {
+				cmd := m.focusNext()
+				return m, cmd
+			}
 		case "enter":
-			if m.focused == len(m.inputs)-1 {
+			if m.focused == 2 {
 				m.loading = true
 				return m, m.submitCmd()
 			}
-			m.inputs[m.focused].Blur()
-			m.focused++
-			m.inputs[m.focused].Focus()
+			if m.focused == 0 {
+				cmd := m.focusNext()
+				return m, cmd
+			}
 		}
 	}
 
 	var cmd tea.Cmd
-	m.inputs[m.focused], cmd = m.inputs[m.focused].Update(msg)
+	switch m.focused {
+	case 0:
+		m.titleInput, cmd = m.titleInput.Update(msg)
+	case 1:
+		m.descInput, cmd = m.descInput.Update(msg)
+	case 2:
+		m.dueDateInput, cmd = m.dueDateInput.Update(msg)
+	}
 	return m, cmd
+}
+
+func (m *CreateTaskModel) focusNext() tea.Cmd {
+	switch m.focused {
+	case 0:
+		m.titleInput.Blur()
+		m.focused = 1
+		return m.descInput.Focus()
+	case 1:
+		m.descInput.Blur()
+		m.focused = 2
+		m.dueDateInput.Focus()
+	case 2:
+		m.dueDateInput.Blur()
+		m.focused = 0
+		m.titleInput.Focus()
+	}
+	return nil
+}
+
+func (m *CreateTaskModel) focusPrev() tea.Cmd {
+	switch m.focused {
+	case 0:
+		m.titleInput.Blur()
+		m.focused = 2
+		m.dueDateInput.Focus()
+	case 1:
+		m.descInput.Blur()
+		m.focused = 0
+		m.titleInput.Focus()
+	case 2:
+		m.dueDateInput.Blur()
+		m.focused = 1
+		return m.descInput.Focus()
+	}
+	return nil
 }
 
 func (m CreateTaskModel) View() string {
@@ -160,23 +218,33 @@ func (m CreateTaskModel) View() string {
 			"\n\n" + normalStyle.Render("Creating task...") + "\n"
 	}
 
-	labels := []string{"Title *", "Description", "Due Date"}
-
 	s := titleStyle.Render("SprintOS — Create Task") + "\n\n"
 
-	for i, label := range labels {
-		if i == m.focused {
-			s += selectedStyle.Render(label) + "\n"
-		} else {
-			s += normalStyle.Render(label) + "\n"
-		}
-		s += m.inputs[i].View() + "\n\n"
+	if m.focused == 0 {
+		s += selectedStyle.Render("Title *") + "\n"
+	} else {
+		s += dimStyle.Render("Title *") + "\n"
 	}
+	s += m.titleInput.View() + "\n\n"
+
+	if m.focused == 1 {
+		s += selectedStyle.Render("Description") + "\n"
+	} else {
+		s += dimStyle.Render("Description") + "\n"
+	}
+	s += m.descInput.View() + "\n\n"
+
+	if m.focused == 2 {
+		s += selectedStyle.Render("Due Date") + "\n"
+	} else {
+		s += dimStyle.Render("Due Date") + "\n"
+	}
+	s += m.dueDateInput.View() + "\n\n"
 
 	if m.err != nil {
 		s += errorStyle.Render(fmt.Sprintf("Error: %s", m.err.Error())) + "\n\n"
 	}
 
-	s += normalStyle.Render("tab/↓ next field  •  shift+tab/↑ previous  •  enter to confirm  •  esc to cancel") + "\n"
+	s += dimStyle.Render("tab next  •  shift+tab prev  •  enter confirm  •  ctrl+s save  •  esc cancel") + "\n"
 	return s
 }

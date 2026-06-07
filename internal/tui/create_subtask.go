@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/varmiguemunoz/sprintos/internal/app"
@@ -10,7 +11,8 @@ import (
 )
 
 type CreateSubtaskModel struct {
-	inputs      []textinput.Model
+	titleInput  textinput.Model
+	descInput   textarea.Model
 	focused     int
 	loading     bool
 	err         error
@@ -30,19 +32,22 @@ func NewCreateSubtaskModel(
 	createdByID uint,
 	subtaskSvc *app.SubtaskService,
 ) CreateSubtaskModel {
-	inputs := make([]textinput.Model, 2)
+	ti := textinput.New()
+	ti.Placeholder = "Subtask title"
+	ti.CharLimit = 150
+	ti.Focus()
 
-	inputs[0] = textinput.New()
-	inputs[0].Placeholder = "Subtask title"
-	inputs[0].CharLimit = 150
-	inputs[0].Focus()
-
-	inputs[1] = textinput.New()
-	inputs[1].Placeholder = "Description (optional)"
-	inputs[1].CharLimit = 500
+	ta := textarea.New()
+	ta.Placeholder = "Description (optional)"
+	ta.CharLimit = 1000
+	ta.SetWidth(70)
+	ta.SetHeight(5)
+	ta.ShowLineNumbers = false
 
 	return CreateSubtaskModel{
-		inputs:      inputs,
+		titleInput:  ti,
+		descInput:   ta,
+		focused:     0,
 		task:        task,
 		project:     project,
 		createdByID: createdByID,
@@ -52,8 +57,8 @@ func NewCreateSubtaskModel(
 
 func (m CreateSubtaskModel) submitCmd() tea.Cmd {
 	return func() tea.Msg {
-		title := m.inputs[0].Value()
-		description := m.inputs[1].Value()
+		title := m.titleInput.Value()
+		description := m.descInput.Value()
 
 		if title == "" {
 			return SubtaskCreatedMsg{Err: fmt.Errorf("subtask title is required")}
@@ -101,31 +106,65 @@ func (m CreateSubtaskModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenTaskDetail, Task: task, Project: project}
 			}
-		case "tab", "down":
-			m.inputs[m.focused].Blur()
-			m.focused = (m.focused + 1) % len(m.inputs)
-			m.inputs[m.focused].Focus()
-		case "shift+tab", "up":
-			m.inputs[m.focused].Blur()
-			m.focused--
-			if m.focused < 0 {
-				m.focused = len(m.inputs) - 1
+		case "ctrl+s":
+			m.loading = true
+			return m, m.submitCmd()
+		case "tab":
+			cmd := m.focusNext()
+			return m, cmd
+		case "shift+tab":
+			cmd := m.focusPrev()
+			return m, cmd
+		case "up":
+			if m.focused != 1 {
+				cmd := m.focusPrev()
+				return m, cmd
 			}
-			m.inputs[m.focused].Focus()
+		case "down":
+			if m.focused != 1 {
+				cmd := m.focusNext()
+				return m, cmd
+			}
 		case "enter":
-			if m.focused == len(m.inputs)-1 {
-				m.loading = true
-				return m, m.submitCmd()
+			if m.focused == 0 {
+				cmd := m.focusNext()
+				return m, cmd
 			}
-			m.inputs[m.focused].Blur()
-			m.focused++
-			m.inputs[m.focused].Focus()
 		}
 	}
 
 	var cmd tea.Cmd
-	m.inputs[m.focused], cmd = m.inputs[m.focused].Update(msg)
+	switch m.focused {
+	case 0:
+		m.titleInput, cmd = m.titleInput.Update(msg)
+	case 1:
+		m.descInput, cmd = m.descInput.Update(msg)
+	}
 	return m, cmd
+}
+
+func (m *CreateSubtaskModel) focusNext() tea.Cmd {
+	if m.focused == 0 {
+		m.titleInput.Blur()
+		m.focused = 1
+		return m.descInput.Focus()
+	}
+	m.descInput.Blur()
+	m.focused = 0
+	m.titleInput.Focus()
+	return nil
+}
+
+func (m *CreateSubtaskModel) focusPrev() tea.Cmd {
+	if m.focused == 1 {
+		m.descInput.Blur()
+		m.focused = 0
+		m.titleInput.Focus()
+		return nil
+	}
+	m.titleInput.Blur()
+	m.focused = 1
+	return m.descInput.Focus()
 }
 
 func (m CreateSubtaskModel) View() string {
@@ -134,23 +173,26 @@ func (m CreateSubtaskModel) View() string {
 			"\n\n" + normalStyle.Render("Saving...") + "\n"
 	}
 
-	labels := []string{"Title *", "Description"}
-
 	s := titleStyle.Render(fmt.Sprintf("SprintOS — New Subtask for: %s", m.task.Title)) + "\n\n"
 
-	for i, label := range labels {
-		if i == m.focused {
-			s += selectedStyle.Render(label) + "\n"
-		} else {
-			s += normalStyle.Render(label) + "\n"
-		}
-		s += m.inputs[i].View() + "\n\n"
+	if m.focused == 0 {
+		s += selectedStyle.Render("Title *") + "\n"
+	} else {
+		s += dimStyle.Render("Title *") + "\n"
 	}
+	s += m.titleInput.View() + "\n\n"
+
+	if m.focused == 1 {
+		s += selectedStyle.Render("Description") + "\n"
+	} else {
+		s += dimStyle.Render("Description") + "\n"
+	}
+	s += m.descInput.View() + "\n\n"
 
 	if m.err != nil {
 		s += errorStyle.Render(fmt.Sprintf("Error: %s", m.err.Error())) + "\n\n"
 	}
 
-	s += normalStyle.Render("tab/↓ next  •  shift+tab/↑ previous  •  enter save  •  esc back") + "\n"
+	s += dimStyle.Render("tab next  •  shift+tab prev  •  ctrl+s save  •  esc back") + "\n"
 	return s
 }

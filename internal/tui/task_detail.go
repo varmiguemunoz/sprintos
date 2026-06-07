@@ -16,17 +16,21 @@ type TaskDetailModel struct {
 	task            domain.Task
 	comments        []domain.Comment
 	subtasks        []domain.Subtask
+	states          []domain.State
 	selectedSubtask int
 	activeTimer     *domain.ActiveTimer
 	totalMinutes    int
 	loading         bool
 	err             error
+	moving          bool
+	moveCursor      int
 	project         domain.Project
 	windowWidth     int
 	taskSvc         *app.TaskService
 	commentSvc      *app.CommentService
 	subtaskSvc      *app.SubtaskService
 	timeSvc         *app.TimeEntryService
+	stateSvc        *app.StateService
 	currentUserID   uint
 }
 
@@ -34,6 +38,7 @@ type TaskDetailLoadedMsg struct {
 	Task         domain.Task
 	Comments     []domain.Comment
 	Subtasks     []domain.Subtask
+	States       []domain.State
 	ActiveTimer  *domain.ActiveTimer
 	TotalMinutes int
 	Err          error
@@ -63,6 +68,7 @@ func NewTaskDetailModel(
 	commentSvc *app.CommentService,
 	subtaskSvc *app.SubtaskService,
 	timeSvc *app.TimeEntryService,
+	stateSvc *app.StateService,
 	currentUserID uint,
 ) TaskDetailModel {
 	return TaskDetailModel{
@@ -74,6 +80,7 @@ func NewTaskDetailModel(
 		commentSvc:    commentSvc,
 		subtaskSvc:    subtaskSvc,
 		timeSvc:       timeSvc,
+		stateSvc:      stateSvc,
 		currentUserID: currentUserID,
 	}
 }
@@ -92,6 +99,7 @@ func (m TaskDetailModel) loadCmd() tea.Cmd {
 		if err != nil {
 			return TaskDetailLoadedMsg{Err: err}
 		}
+		states, _ := m.stateSvc.ListByProject(task.ProjectID)
 		timer, _ := m.timeSvc.GetActiveTimer(m.currentUserID)
 		var totalMinutes int
 		if len(subtasks) > 0 {
@@ -103,6 +111,7 @@ func (m TaskDetailModel) loadCmd() tea.Cmd {
 			Task:         *task,
 			Comments:     comments,
 			Subtasks:     subtasks,
+			States:       states,
 			ActiveTimer:  timer,
 			TotalMinutes: totalMinutes,
 		}
@@ -115,6 +124,13 @@ func (m TaskDetailModel) deleteSubtaskCmd(id uint) tea.Cmd {
 			return SubtaskDeletedMsg{Err: err}
 		}
 		return SubtaskDeletedMsg{}
+	}
+}
+
+func (m TaskDetailModel) moveTaskCmd(newStateID uint) tea.Cmd {
+	return func() tea.Msg {
+		_, err := m.taskSvc.MoveState(m.task.ID, newStateID)
+		return TaskMovedMsg{Err: err}
 	}
 }
 
@@ -151,6 +167,7 @@ func (m TaskDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.task = msg.Task
 		m.comments = msg.Comments
 		m.subtasks = msg.Subtasks
+		m.states = msg.States
 		m.activeTimer = msg.ActiveTimer
 		m.totalMinutes = msg.TotalMinutes
 		if m.selectedSubtask >= len(m.subtasks) {
@@ -160,6 +177,16 @@ func (m TaskDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, taskDetailTickCmd()
 		}
 		return m, nil
+	}
+
+	if msg, ok := msg.(TaskMovedMsg); ok {
+		m.moving = false
+		if msg.Err != nil {
+			m.err = msg.Err
+			return m, nil
+		}
+		m.loading = true
+		return m, m.loadCmd()
 	}
 
 	if msg, ok := msg.(TaskDetailTickMsg); ok {
@@ -196,6 +223,27 @@ func (m TaskDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if m.moving {
+			switch msg.String() {
+			case "up", "k":
+				if m.moveCursor > 0 {
+					m.moveCursor--
+				}
+			case "down", "j":
+				if m.moveCursor < len(m.states)-1 {
+					m.moveCursor++
+				}
+			case "enter":
+				if len(m.states) > 0 {
+					newStateID := m.states[m.moveCursor].ID
+					return m, m.moveTaskCmd(newStateID)
+				}
+			case "esc":
+				m.moving = false
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "a":
 			task := m.task
@@ -220,6 +268,16 @@ func (m TaskDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			project := m.project
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenCreateSubtask, Task: task, Project: project}
+			}
+		case "m":
+			if len(m.states) > 0 {
+				for i, st := range m.states {
+					if st.ID == m.task.StateID {
+						m.moveCursor = i
+						break
+					}
+				}
+				m.moving = true
 			}
 		case "T":
 			if len(m.subtasks) == 0 {
@@ -271,6 +329,20 @@ func (m TaskDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m TaskDetailModel) renderMoveDialog() string {
+	s := titleStyle.Render("SprintOS — ") + valueStyle.Render(m.task.Title) + "\n\n"
+	s += sectionHeader(fmt.Sprintf("Move \"%s\" to:", truncate(m.task.Title, 34))) + "\n\n"
+	for i, st := range m.states {
+		if i == m.moveCursor {
+			s += highlightStyle.Render(fmt.Sprintf("  ▶ %s", st.Name)) + "\n"
+		} else {
+			s += normalStyle.Render(fmt.Sprintf("    %s", st.Name)) + "\n"
+		}
+	}
+	s += "\n" + renderHintBar("↑/↓", "choose", "enter", "confirm", "esc", "cancel") + "\n"
+	return s
+}
+
 func (m TaskDetailModel) View() string {
 	if m.loading {
 		return titleStyle.Render("SprintOS — Task Detail") +
@@ -280,6 +352,10 @@ func (m TaskDetailModel) View() string {
 	if m.err != nil {
 		return titleStyle.Render("SprintOS — Task Detail") +
 			"\n\n" + errorStyle.Render(fmt.Sprintf("Error: %s", m.err.Error())) + "\n"
+	}
+
+	if m.moving {
+		return m.renderMoveDialog()
 	}
 
 	w := m.windowWidth
@@ -311,6 +387,7 @@ func (m TaskDetailModel) View() string {
 		"a", "assign",
 		"c", "comment",
 		"e", "edit",
+		"m", "move",
 		"s", "subtask",
 		"T", "timer",
 		"l", "log time",

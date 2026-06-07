@@ -33,7 +33,7 @@ type DashboardMetricsLoadedMsg struct {
 type DashboardAutoRefreshMsg time.Time
 
 func dashboardAutoRefreshCmd() tea.Cmd {
-	return tea.Tick(30*time.Second, func(t time.Time) tea.Msg {
+	return tea.Tick(10*time.Minute, func(t time.Time) tea.Msg {
 		return DashboardAutoRefreshMsg(t)
 	})
 }
