@@ -132,6 +132,10 @@ func (m OrgSettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.inputs[m.focused].Blur()
 			m.focused++
 			m.inputs[m.focused].Focus()
+		case "?":
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenGuide}
+			}
 		case "L":
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenLogin}
@@ -171,6 +175,6 @@ func (m OrgSettingsModel) View() string {
 		s += selectedStyle.Render("✓ Changes saved successfully") + "\n\n"
 	}
 
-	s += normalStyle.Render("tab/↓ next • enter save • c notifications • i invite member  •  m mcp setup  •  L logout  •  esc back") + "\n"
+	s += renderHintBar("tab/↓", "next", "enter", "save", "c", "notifications", "i", "invite", "m", "mcp", "?", "guide", "L", "logout", "esc", "back") + "\n"
 	return s
 }

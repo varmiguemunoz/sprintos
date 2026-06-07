@@ -33,8 +33,8 @@ func NewGitHubHandler(githubSvc *app.GitHubService, taskSvc *app.TaskService, or
 type prEvent struct {
 	Action      string `json:"action"`
 	PullRequest struct {
-		Title  string `json:"title"`
-		Head   struct {
+		Title string `json:"title"`
+		Head  struct {
 			Ref string `json:"ref"`
 		} `json:"head"`
 		Merged bool `json:"merged"`

@@ -34,26 +34,26 @@ const (
 )
 
 type ExportReportModel struct {
-	step           exportStep
-	projects       []domain.Project
-	selectedAll    bool
+	step            exportStep
+	projects        []domain.Project
+	selectedAll     bool
 	checkedProjects map[uint]bool
-	projectCursor  int
+	projectCursor   int
 
-	rangeOption    timeRangeOption
-	rangeCursor    int
-	customFrom     textinput.Model
-	customTo       textinput.Model
-	focusedInput   int
+	rangeOption  timeRangeOption
+	rangeCursor  int
+	customFrom   textinput.Model
+	customTo     textinput.Model
+	focusedInput int
 
-	spinner        spinner.Model
-	savedPath      string
-	err            error
+	spinner   spinner.Model
+	savedPath string
+	err       error
 
-	currentOrgID  uint
-	reportSvc     *app.ReportService
-	projectSvc    *app.ProjectService
-	windowWidth   int
+	currentOrgID uint
+	reportSvc    *app.ReportService
+	projectSvc   *app.ProjectService
+	windowWidth  int
 }
 
 type exportProjectsLoadedMsg struct {

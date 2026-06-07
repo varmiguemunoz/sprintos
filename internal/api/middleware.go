@@ -43,8 +43,8 @@ func currentKey(r *http.Request) *domain.APIKey {
 }
 
 type rateLimiter struct {
-	mu       sync.Mutex
-	buckets  map[uint]*bucket
+	mu      sync.Mutex
+	buckets map[uint]*bucket
 }
 
 type bucket struct {

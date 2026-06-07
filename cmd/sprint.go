@@ -147,7 +147,7 @@ var sprintVelocityCmd = &cobra.Command{
 
 		bar := ""
 		for i := 0; i < 20; i++ {
-			if i < (pct/5) {
+			if i < (pct / 5) {
 				bar += "█"
 			} else {
 				bar += "░"

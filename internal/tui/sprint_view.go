@@ -12,20 +12,20 @@ import (
 )
 
 type SprintViewModel struct {
-	project         domain.Project
-	sprints         []domain.Sprint
-	sprintTasks     map[uint][]domain.Task
-	cursor          int
-	loading         bool
-	planningMode    bool
-	deleting        bool
-	deletingSprint  *domain.Sprint
-	backlog         []domain.Task
-	backlogCursor   int
-	err             error
-	sprintSvc       *app.SprintService
-	taskSvc         *app.TaskService
-	stateSvc        *app.StateService
+	project        domain.Project
+	sprints        []domain.Sprint
+	sprintTasks    map[uint][]domain.Task
+	cursor         int
+	loading        bool
+	planningMode   bool
+	deleting       bool
+	deletingSprint *domain.Sprint
+	backlog        []domain.Task
+	backlogCursor  int
+	err            error
+	sprintSvc      *app.SprintService
+	taskSvc        *app.TaskService
+	stateSvc       *app.StateService
 }
 
 type SprintDataLoadedMsg struct {

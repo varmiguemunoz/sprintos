@@ -10,14 +10,14 @@ import (
 )
 
 type CreateSubtaskCommentModel struct {
-	input              textinput.Model
-	loading            bool
-	err                error
-	subtask            domain.Subtask
-	task               domain.Task
-	project            domain.Project
-	authorID           uint
-	subtaskCommentSvc  *app.SubtaskCommentService
+	input             textinput.Model
+	loading           bool
+	err               error
+	subtask           domain.Subtask
+	task              domain.Task
+	project           domain.Project
+	authorID          uint
+	subtaskCommentSvc *app.SubtaskCommentService
 }
 
 type SubtaskCommentCreatedMsg struct {

@@ -43,6 +43,7 @@ const (
 	screenLogTime
 	screenExportReport
 	screenEditSprint
+	screenGuide
 )
 
 type NavigateMsg struct {
@@ -65,28 +66,32 @@ type UserResolvedMsg struct {
 	Err   error
 }
 
+type GoBackMsg struct{}
+
 type AppModel struct {
-	activeScreen screen
-	currentModel tea.Model
-	userSvc      *app.UserService
-	orgSvc       *app.OrganizationService
-	projectSvc   *app.ProjectService
-	stateSvc     *app.StateService
-	taskSvc      *app.TaskService
-	teamSvc      *app.TeamService
-	sprintSvc    *app.SprintService
+	activeScreen      screen
+	currentModel      tea.Model
+	prevModel         tea.Model
+	prevScreen        screen
+	userSvc           *app.UserService
+	orgSvc            *app.OrganizationService
+	projectSvc        *app.ProjectService
+	stateSvc          *app.StateService
+	taskSvc           *app.TaskService
+	teamSvc           *app.TeamService
+	sprintSvc         *app.SprintService
 	notifSvc          *app.NotificationService
-	commentSvc         *app.CommentService
-	invitationSvc      *app.InvitationService
-	subtaskSvc         *app.SubtaskService
-	subtaskCommentSvc  *app.SubtaskCommentService
-	timeSvc            *app.TimeEntryService
-	dashboardSvc       *app.DashboardService
-	reportSvc          *app.ReportService
-	currentUser   *domain.User
-	currentOrgID uint
-	currentOrg   *domain.Organization
-	isOnboarding bool
+	commentSvc        *app.CommentService
+	invitationSvc     *app.InvitationService
+	subtaskSvc        *app.SubtaskService
+	subtaskCommentSvc *app.SubtaskCommentService
+	timeSvc           *app.TimeEntryService
+	dashboardSvc      *app.DashboardService
+	reportSvc         *app.ReportService
+	currentUser       *domain.User
+	currentOrgID      uint
+	currentOrg        *domain.Organization
+	isOnboarding      bool
 }
 
 func (m AppModel) Init() tea.Cmd {
@@ -116,6 +121,15 @@ func (m AppModel) resolveUserCmd(gothUser goth.User) tea.Cmd {
 }
 
 func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if _, ok := msg.(GoBackMsg); ok {
+		if m.prevModel != nil {
+			m.currentModel = m.prevModel
+			m.activeScreen = m.prevScreen
+			m.prevModel = nil
+		}
+		return m, nil
+	}
+
 	switch msg := msg.(type) {
 
 	case NavigateMsg:
@@ -334,6 +348,14 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.activeScreen = screenLogTime
 				return m, logTime.Init()
 			}
+
+		case screenGuide:
+			m.prevModel = m.currentModel
+			m.prevScreen = m.activeScreen
+			guide := NewGuideModel()
+			m.currentModel = guide
+			m.activeScreen = screenGuide
+			return m, guide.Init()
 
 		case screenEditSprint:
 			editSprint := NewEditSprintModel(msg.Sprint, msg.Project, m.sprintSvc)

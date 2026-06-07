@@ -9,7 +9,7 @@ import (
 type State int
 
 const (
-	Idle    State = iota
+	Idle State = iota
 	Running
 	Grace
 )

@@ -5,32 +5,32 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/varmiguemunoz/sprintos/internal/app"
 	"github.com/varmiguemunoz/sprintos/internal/domain"
 )
 
 type KanbanModel struct {
-	project      domain.Project
-	states       []domain.State
-	tasks        map[uint][]domain.Task
-	colCursor    int
-	taskCursor   map[uint]int
-	loading      bool
-	err          error
-	moving       bool
-	moveCursor   int
-	selectedTask *domain.Task
-	deleting     bool
+	project       domain.Project
+	states        []domain.State
+	tasks         map[uint][]domain.Task
+	colCursor     int
+	taskCursor    map[uint]int
+	loading       bool
+	err           error
+	moving        bool
+	moveCursor    int
+	selectedTask  *domain.Task
+	deleting      bool
 	reorderMode   bool
 	reorderStates []domain.State
 	reorderCursor int
-	showHelp     bool
-	windowWidth  int
-	windowHeight int
-	stateSvc     *app.StateService
-	taskSvc      *app.TaskService
+	showHelp      bool
+	windowWidth   int
+	windowHeight  int
+	stateSvc      *app.StateService
+	taskSvc       *app.TaskService
 }
 
 type KanbanLoadedMsg struct {
@@ -286,7 +286,9 @@ func (m KanbanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "?":
-			m.showHelp = !m.showHelp
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenGuide}
+			}
 		case "enter":
 			if len(m.states) > 0 {
 				stateID := m.states[m.colCursor].ID
@@ -432,7 +434,7 @@ func (m KanbanModel) View() string {
 			"v", "sprints",
 			"b", "board",
 			"E", "export",
-			"?", "help",
+			"?", "guide",
 			"esc", "back",
 		)
 	}

@@ -21,14 +21,14 @@ const (
 type boardField int
 
 const (
-	fieldName  boardField = iota
+	fieldName boardField = iota
 	fieldColor
 	fieldDone
 )
 
 type customStateEntry struct {
-	Name  string
-	Color string
+	Name   string
+	Color  string
 	IsDone bool
 }
 
@@ -388,7 +388,7 @@ func (m BoardSetupModel) View() string {
 	for i, c := range colorPalette {
 		swatch := lipgloss.NewStyle().Foreground(lipgloss.Color(c.Hex)).Render("■ " + c.Name)
 		if i == m.colorIdx {
-			colorRow += selectedStyle.Render("[" + swatch + "]") + " "
+			colorRow += selectedStyle.Render("["+swatch+"]") + " "
 		} else {
 			colorRow += swatch + " "
 		}

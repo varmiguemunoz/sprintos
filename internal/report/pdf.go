@@ -18,9 +18,9 @@ import (
 	"github.com/johnfercher/maroto/v2/pkg/consts/fontstyle"
 	"github.com/johnfercher/maroto/v2/pkg/core"
 	"github.com/johnfercher/maroto/v2/pkg/props"
+	"github.com/varmiguemunoz/sprintos/internal/app"
 	chart "github.com/wcharczuk/go-chart/v2"
 	"github.com/wcharczuk/go-chart/v2/drawing"
-	"github.com/varmiguemunoz/sprintos/internal/app"
 )
 
 var (

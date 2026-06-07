@@ -91,7 +91,7 @@ func (m CreateOrgModel) Init() tea.Cmd {
 }
 
 func (m CreateOrgModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	
+
 	if msg, ok := msg.(OrgCreatedMsg); ok {
 		if msg.Err != nil {
 			m.err = msg.Err
@@ -99,7 +99,7 @@ func (m CreateOrgModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		org := *msg.Org
-		return m, func() tea.Msg { 
+		return m, func() tea.Msg {
 			return NavigateMsg{To: screenCreateProject, Org: org}
 		}
 	}

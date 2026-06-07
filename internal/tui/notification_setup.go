@@ -18,13 +18,13 @@ const (
 )
 
 type NotificationSetupModel struct {
-	mode       notifSetupMode
-	cursor     int
-	inputs     []textinput.Model
-	loading    bool
-	err        error
-	orgID      uint
-	notifSvc   *app.NotificationService
+	mode     notifSetupMode
+	cursor   int
+	inputs   []textinput.Model
+	loading  bool
+	err      error
+	orgID    uint
+	notifSvc *app.NotificationService
 }
 
 type NotifSetupDoneMsg struct{ Err error }
@@ -147,13 +147,17 @@ func (m NotificationSetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "tab", "down":
 			if len(m.inputs) > 1 {
-				for i := range m.inputs { m.inputs[i].Blur() }
+				for i := range m.inputs {
+					m.inputs[i].Blur()
+				}
 				next := (m.focusedInput() + 1) % len(m.inputs)
 				m.inputs[next].Focus()
 			}
 		case "shift+tab", "up":
 			if len(m.inputs) > 1 {
-				for i := range m.inputs { m.inputs[i].Blur() }
+				for i := range m.inputs {
+					m.inputs[i].Blur()
+				}
 				prev := (m.focusedInput() - 1 + len(m.inputs)) % len(m.inputs)
 				m.inputs[prev].Focus()
 			}

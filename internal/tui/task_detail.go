@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gen2brain/beeep"
 	"github.com/varmiguemunoz/sprintos/internal/app"
 	"github.com/varmiguemunoz/sprintos/internal/domain"

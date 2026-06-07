@@ -369,12 +369,12 @@ func StartServer(db *gorm.DB) error {
 			}
 
 			type staleTask struct {
-				TaskID          uint   `json:"task_id"`
-				TaskNumber      int    `json:"task_number"`
-				Title           string `json:"title"`
-				CurrentState    string `json:"current_state"`
-				DaysWithoutUpdate int  `json:"days_without_update"`
-				SuggestedAction string `json:"suggested_action"`
+				TaskID            uint   `json:"task_id"`
+				TaskNumber        int    `json:"task_number"`
+				Title             string `json:"title"`
+				CurrentState      string `json:"current_state"`
+				DaysWithoutUpdate int    `json:"days_without_update"`
+				SuggestedAction   string `json:"suggested_action"`
 			}
 
 			var stale []staleTask
@@ -448,12 +448,12 @@ func StartServer(db *gorm.DB) error {
 			}
 
 			summary := map[string]interface{}{
-				"total_tasks":    len(tasks),
-				"completed":      completed,
-				"overdue":        overdue,
-				"unassigned":     unassigned,
-				"by_state":       byState,
-				"team_workload":  workload,
+				"total_tasks":   len(tasks),
+				"completed":     completed,
+				"overdue":       overdue,
+				"unassigned":    unassigned,
+				"by_state":      byState,
+				"team_workload": workload,
 			}
 			return mcp.NewToolResultText(marshal(summary)), nil
 		},

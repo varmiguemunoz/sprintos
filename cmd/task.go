@@ -250,5 +250,3 @@ func init() {
 	taskCmd.AddCommand(taskShowCmd)
 	rootCmd.AddCommand(taskCmd)
 }
-
-

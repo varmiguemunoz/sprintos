@@ -10,17 +10,17 @@ import (
 )
 
 type ConnectionsModel struct {
-	configs    []domain.NotificationConfig
-	cursor     int
-	adding     bool
-	addMode    notifSetupMode
-	addCursor  int
-	inputs     []textinput.Model
-	loading    bool
-	err        error
-	saved      bool
-	orgID      uint
-	notifSvc   *app.NotificationService
+	configs   []domain.NotificationConfig
+	cursor    int
+	adding    bool
+	addMode   notifSetupMode
+	addCursor int
+	inputs    []textinput.Model
+	loading   bool
+	err       error
+	saved     bool
+	orgID     uint
+	notifSvc  *app.NotificationService
 }
 
 type ConnectionsLoadedMsg struct {
@@ -83,14 +83,24 @@ func (m ConnectionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.addMode == notifModeChoose {
 				switch msg.String() {
 				case "up", "k":
-					if m.addCursor > 0 { m.addCursor-- }
+					if m.addCursor > 0 {
+						m.addCursor--
+					}
 				case "down", "j":
-					if m.addCursor < len(notifChoices)-2 { m.addCursor++ }
+					if m.addCursor < len(notifChoices)-2 {
+						m.addCursor++
+					}
 				case "enter":
 					switch m.addCursor {
-					case 0: m.addMode = notifModeSlack; m.inputs = (&NotificationSetupModel{}).setupInputs(notifModeSlack)
-					case 1: m.addMode = notifModeDiscord; m.inputs = (&NotificationSetupModel{}).setupInputs(notifModeDiscord)
-					case 2: m.addMode = notifModeWhatsApp; m.inputs = (&NotificationSetupModel{}).setupInputs(notifModeWhatsApp)
+					case 0:
+						m.addMode = notifModeSlack
+						m.inputs = (&NotificationSetupModel{}).setupInputs(notifModeSlack)
+					case 1:
+						m.addMode = notifModeDiscord
+						m.inputs = (&NotificationSetupModel{}).setupInputs(notifModeDiscord)
+					case 2:
+						m.addMode = notifModeWhatsApp
+						m.inputs = (&NotificationSetupModel{}).setupInputs(notifModeWhatsApp)
 					}
 				case "esc":
 					m.adding = false
@@ -112,25 +122,38 @@ func (m ConnectionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, func() tea.Msg {
 					var channel, webhookURL string
 					switch mode {
-					case notifModeSlack: channel, webhookURL = "slack", inputs[0].Value()
-					case notifModeDiscord: channel, webhookURL = "discord", inputs[0].Value()
-					case notifModeWhatsApp: channel, webhookURL = "whatsapp", inputs[0].Value()
+					case notifModeSlack:
+						channel, webhookURL = "slack", inputs[0].Value()
+					case notifModeDiscord:
+						channel, webhookURL = "discord", inputs[0].Value()
+					case notifModeWhatsApp:
+						channel, webhookURL = "whatsapp", inputs[0].Value()
 					}
 					err := notifSvc.SaveConfig(orgID, channel, webhookURL)
 					return ConnectionSavedMsg{Err: err}
 				}
 			case "tab":
 				if len(m.inputs) > 1 {
-					for i := range m.inputs { m.inputs[i].Blur() }
+					for i := range m.inputs {
+						m.inputs[i].Blur()
+					}
 					focused := 0
-					for i, inp := range m.inputs { if inp.Focused() { focused = i } }
+					for i, inp := range m.inputs {
+						if inp.Focused() {
+							focused = i
+						}
+					}
 					m.inputs[(focused+1)%len(m.inputs)].Focus()
 				}
 			}
 
 			if len(m.inputs) > 0 {
 				focused := 0
-				for i, inp := range m.inputs { if inp.Focused() { focused = i } }
+				for i, inp := range m.inputs {
+					if inp.Focused() {
+						focused = i
+					}
+				}
 				var cmd tea.Cmd
 				m.inputs[focused], cmd = m.inputs[focused].Update(msg)
 				return m, cmd
@@ -140,9 +163,13 @@ func (m ConnectionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch msg.String() {
 		case "up", "k":
-			if m.cursor > 0 { m.cursor-- }
+			if m.cursor > 0 {
+				m.cursor--
+			}
 		case "down", "j":
-			if m.cursor < len(m.configs)-1 { m.cursor++ }
+			if m.cursor < len(m.configs)-1 {
+				m.cursor++
+			}
 		case "n":
 			m.adding = true
 			m.addMode = notifModeChoose
@@ -218,9 +245,13 @@ func (m ConnectionsModel) View() string {
 		s += selectedStyle.Render("Active connections:") + "\n\n"
 		for i, c := range m.configs {
 			status := "✓ enabled"
-			if !c.Enabled { status = "✗ disabled" }
+			if !c.Enabled {
+				status = "✗ disabled"
+			}
 			preview := c.WebhookURL
-			if len(preview) > 35 { preview = preview[:35] + "..." }
+			if len(preview) > 35 {
+				preview = preview[:35] + "..."
+			}
 			line := fmt.Sprintf("%-10s  %-12s  %s", c.Channel, status, preview)
 			if i == m.cursor {
 				s += selectedStyle.Render("> "+line) + "\n"

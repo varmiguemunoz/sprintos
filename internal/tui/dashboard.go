@@ -143,7 +143,9 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return NavigateMsg{To: screenSearch}
 			}
 		case "?":
-			m.showHelp = !m.showHelp
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenGuide}
+			}
 		case "s":
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenOrgSettings}
@@ -239,7 +241,7 @@ func (m DashboardModel) View() string {
 			"d", "dashboard",
 			"/", "search",
 			"s", "settings",
-			"?", "help",
+			"?", "guide",
 			"q", "quit",
 		) + "\n"
 	}

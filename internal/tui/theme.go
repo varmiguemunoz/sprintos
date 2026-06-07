@@ -37,7 +37,7 @@ var (
 )
 
 func sectionHeader(title string) string {
-	return selectedStyle.Render("╴ "+title)
+	return selectedStyle.Render("╴ " + title)
 }
 
 func renderHintBar(pairs ...string) string {

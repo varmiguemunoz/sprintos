@@ -12,16 +12,16 @@ import (
 )
 
 type LogTimeModel struct {
-	inputs    []textinput.Model
-	focused   int
-	loading   bool
-	saved     bool
-	err       error
-	task      *domain.Task
-	subtask   *domain.Subtask
-	project   domain.Project
-	userID    uint
-	timeSvc   *app.TimeEntryService
+	inputs  []textinput.Model
+	focused int
+	loading bool
+	saved   bool
+	err     error
+	task    *domain.Task
+	subtask *domain.Subtask
+	project domain.Project
+	userID  uint
+	timeSvc *app.TimeEntryService
 }
 
 type TimeLoggedMsg struct {
