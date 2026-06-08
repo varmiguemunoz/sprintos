@@ -35,6 +35,8 @@ jobs:
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_FROM: ${{ secrets.SMTP_FROM }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EVOLUTION_API_URL: ${{ secrets.EVOLUTION_API_URL }}
+          EVOLUTION_API_TOKEN: ${{ secrets.EVOLUTION_API_TOKEN }}
         run: |
           python3 - << 'PYEOF'
           import os
@@ -54,6 +56,8 @@ jobs:
               SMTPPort           = "{esc(os.environ.get('SMTP_PORT', ''))}"
               SMTPFrom           = "{esc(os.environ.get('SMTP_FROM', ''))}"
               SMTPPassword       = "{esc(os.environ.get('SMTP_PASSWORD', ''))}"
+              EvolutionAPIURL    = "{esc(os.environ.get('EVOLUTION_API_URL', ''))}"
+              EvolutionAPIToken  = "{esc(os.environ.get('EVOLUTION_API_TOKEN', ''))}"
           )
 
           func GetDatabaseURL() string {{
@@ -103,6 +107,20 @@ jobs:
                   return SMTPPassword
               }}
               return os.Getenv("SMTP_PASSWORD")
+          }}
+
+          func GetEvolutionAPIURL() string {{
+              if EvolutionAPIURL != "" {{
+                  return EvolutionAPIURL
+              }}
+              return os.Getenv("EVOLUTION_API_URL")
+          }}
+
+          func GetEvolutionAPIToken() string {{
+              if EvolutionAPIToken != "" {{
+                  return EvolutionAPIToken
+              }}
+              return os.Getenv("EVOLUTION_API_TOKEN")
           }}
           '''
 
