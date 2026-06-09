@@ -23,6 +23,10 @@ func StartServer(db *gorm.DB) error {
 	orgSvc := app.NewOrganizationService(db)
 	commentSvc := app.NewCommentService(db)
 	teamSvc := app.NewTeamService(db)
+	invitationSvc := app.NewInvitationService(db)
+	subtaskSvc := app.NewSubtaskService(db)
+	sprintSvc := app.NewSprintService(db)
+	timeSvc := app.NewTimeEntryService(db)
 
 	session, err := auth.LoadSession()
 	if err != nil {
@@ -502,21 +506,33 @@ func StartServer(db *gorm.DB) error {
 
 	s.AddTool(
 		mcp.NewTool("list_organizations",
-			mcp.WithDescription("List all organizations the current user belongs to"),
+			mcp.WithDescription("List all organizations the current user belongs to (owned and member)"),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			ownerOrg, _ := orgSvc.GetByOwnerID(currentUser.ID)
 			result := []interface{}{}
-			if ownerOrg != nil {
+			if ownerOrg, err := orgSvc.GetByOwnerID(currentUser.ID); err == nil {
 				result = append(result, map[string]interface{}{
 					"id":   ownerOrg.ID,
 					"name": ownerOrg.Name,
 					"role": "owner",
 				})
 			}
+			memberOrgs, _ := teamSvc.GetOrganizationsByMemberUserID(currentUser.ID)
+			for _, o := range memberOrgs {
+				result = append(result, map[string]interface{}{
+					"id":   o.ID,
+					"name": o.Name,
+					"role": "member",
+				})
+			}
 			return mcp.NewToolResultText(marshal(result)), nil
 		},
 	)
+
+	registerOrgTools(s, org, currentUser, teamSvc, invitationSvc)
+	registerSubtaskTools(s, subtaskSvc, currentUser)
+	registerTimerTools(s, timeSvc, currentUser)
+	registerSprintTools(s, sprintSvc)
 
 	return server.ServeStdio(s)
 }
