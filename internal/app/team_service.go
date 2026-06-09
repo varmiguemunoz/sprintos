@@ -118,7 +118,7 @@ func (s *TeamService) GetOrganizationsByMemberUserID(userID uint) ([]domain.Orga
 
 	err := s.db.
 		Joins("JOIN team_members ON team_members.organization_id = organizations.id AND team_members.deleted_at IS NULL").
-		Where("team_members.user_id = ? AND organizations.deleted_at IS NULL", userID).
+		Where("team_members.user_id = ? AND organizations.deleted_at IS NULL AND organizations.owner_id != ?", userID, userID).
 		Find(&orgs).Error
 
 	if err != nil {
