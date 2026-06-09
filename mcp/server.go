@@ -43,11 +43,6 @@ func StartServer(db *gorm.DB) error {
 		return fmt.Errorf("could not load organization: %w", err)
 	}
 
-	marshal := func(v interface{}) string {
-		b, _ := json.MarshalIndent(v, "", "  ")
-		return string(b)
-	}
-
 	s.AddTool(
 		mcp.NewTool("list_projects",
 			mcp.WithDescription("List all projects in the organization"),
@@ -535,6 +530,11 @@ func StartServer(db *gorm.DB) error {
 	registerSprintTools(s, sprintSvc)
 
 	return server.ServeStdio(s)
+}
+
+func marshal(v interface{}) string {
+	b, _ := json.MarshalIndent(v, "", "  ")
+	return string(b)
 }
 
 func getArgs(req mcp.CallToolRequest) map[string]interface{} {
