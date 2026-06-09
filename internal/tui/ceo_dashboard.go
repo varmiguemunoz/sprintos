@@ -130,6 +130,14 @@ func (m CEODashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenDashboard}
 			}
+		case "o":
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenOrgSelector}
+			}
+		case "L":
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenLogin}
+			}
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		}
@@ -174,7 +182,7 @@ func (m CEODashboardModel) viewEmpty() string {
 	s += hintKeyStyle.Render("  2.") + normalStyle.Render(" Set up your board states") + "\n"
 	s += hintKeyStyle.Render("  3.") + normalStyle.Render(" Add tasks and assign your team") + "\n\n"
 	s += dimStyle.Render(strings.Repeat("─", 54)) + "\n"
-	s += renderHintBar("p", "go to projects", "q", "quit") + "\n"
+	s += renderHintBar("p", "go to projects", "o", "switch org", "L", "logout", "q", "quit") + "\n"
 	return s
 }
 
@@ -226,7 +234,7 @@ func (m CEODashboardModel) viewDashboard() string {
 	bottomRow := m.renderBottomRow(mt, w)
 
 	hint := "\n" + dimStyle.Render(strings.Repeat("─", w-2)) + "\n"
-	hint += renderHintBar("f", "filter", "r", "refresh", "p", "projects", "q", "quit") + "\n"
+	hint += renderHintBar("f", "filter", "r", "refresh", "p", "projects", "o", "switch org", "L", "logout", "q", "quit") + "\n"
 
 	return header + "\n" + kpiRow + "\n" + midRow + "\n" + bottomRow + hint
 }

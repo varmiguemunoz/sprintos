@@ -27,7 +27,7 @@ func generateToken() (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-func (s *InvitationService) Create(email string, orgID uint) (*domain.Invitation, error) {
+func (s *InvitationService) Create(email string, orgID uint, role string) (*domain.Invitation, error) {
 	token, err := generateToken()
 	if err != nil {
 		return nil, fmt.Errorf("could not generate token: %w", err)
@@ -37,6 +37,7 @@ func (s *InvitationService) Create(email string, orgID uint) (*domain.Invitation
 		Email:          email,
 		OrganizationID: orgID,
 		Token:          token,
+		Role:           role,
 		ExpiresAt:      time.Now().Add(7 * 24 * time.Hour),
 	}
 
@@ -64,6 +65,20 @@ func (s *InvitationService) GetByToken(token string) (*domain.Invitation, error)
 	return &invitation, nil
 }
 
+func (s *InvitationService) GetPendingByEmail(email string) ([]domain.Invitation, error) {
+	var invitations []domain.Invitation
+
+	err := s.db.Preload("Organization").
+		Where("email = ? AND accepted_at IS NULL AND declined_at IS NULL AND expires_at > ?", email, time.Now()).
+		Find(&invitations).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("error fetching invitations: %w", err)
+	}
+
+	return invitations, nil
+}
+
 func (s *InvitationService) Accept(token string) (*domain.Invitation, error) {
 	inv, err := s.GetByToken(token)
 	if err != nil {
@@ -72,6 +87,10 @@ func (s *InvitationService) Accept(token string) (*domain.Invitation, error) {
 
 	if inv.AcceptedAt != nil {
 		return nil, fmt.Errorf("this invitation has already been accepted")
+	}
+
+	if inv.DeclinedAt != nil {
+		return nil, fmt.Errorf("this invitation has already been declined")
 	}
 
 	if time.Now().After(inv.ExpiresAt) {
@@ -85,4 +104,26 @@ func (s *InvitationService) Accept(token string) (*domain.Invitation, error) {
 
 	inv.AcceptedAt = &now
 	return inv, nil
+}
+
+func (s *InvitationService) Decline(token string) error {
+	inv, err := s.GetByToken(token)
+	if err != nil {
+		return err
+	}
+
+	if inv.AcceptedAt != nil {
+		return fmt.Errorf("this invitation has already been accepted")
+	}
+
+	if inv.DeclinedAt != nil {
+		return fmt.Errorf("this invitation has already been declined")
+	}
+
+	now := time.Now()
+	if err := s.db.Model(inv).Update("declined_at", now).Error; err != nil {
+		return fmt.Errorf("could not decline invitation: %w", err)
+	}
+
+	return nil
 }

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,6 +13,9 @@ import (
 
 type InviteUserModel struct {
 	input         textinput.Model
+	focusField    int
+	roles         []string
+	roleIdx       int
 	loading       bool
 	sent          bool
 	err           error
@@ -31,6 +35,9 @@ func NewInviteUserModel(org domain.Organization, invitationSvc *app.InvitationSe
 
 	return InviteUserModel{
 		input:         input,
+		focusField:    0,
+		roles:         []string{"Owner", "Manager", "Member"},
+		roleIdx:       1,
 		org:           org,
 		invitationSvc: invitationSvc,
 	}
@@ -43,7 +50,9 @@ func (m InviteUserModel) sendInviteCmd() tea.Cmd {
 			return InviteSentMsg{Err: fmt.Errorf("email address is required")}
 		}
 
-		inv, err := m.invitationSvc.Create(emailAddr, m.org.ID)
+		role := strings.ToLower(m.roles[m.roleIdx])
+
+		inv, err := m.invitationSvc.Create(emailAddr, m.org.ID, role)
 		if err != nil {
 			return InviteSentMsg{Err: err}
 		}
@@ -69,7 +78,10 @@ func (m InviteUserModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.sent = true
 		m.input.SetValue("")
-		return m, nil
+		m.roleIdx = 1
+		m.focusField = 0
+		m.input.Focus()
+		return m, textinput.Blink
 	}
 
 	if m.loading {
@@ -85,6 +97,36 @@ func (m InviteUserModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "ctrl+c":
 			return m, tea.Quit
+		case "tab", "down":
+			m.sent = false
+			m.err = nil
+			if m.focusField == 0 {
+				m.input.Blur()
+				m.focusField = 1
+			} else {
+				m.focusField = 0
+				m.input.Focus()
+				return m, textinput.Blink
+			}
+		case "shift+tab", "up":
+			m.sent = false
+			m.err = nil
+			if m.focusField == 1 {
+				m.focusField = 0
+				m.input.Focus()
+				return m, textinput.Blink
+			}
+		case "left":
+			if m.focusField == 1 {
+				m.roleIdx--
+				if m.roleIdx < 0 {
+					m.roleIdx = len(m.roles) - 1
+				}
+			}
+		case "right":
+			if m.focusField == 1 {
+				m.roleIdx = (m.roleIdx + 1) % len(m.roles)
+			}
 		case "enter":
 			m.loading = true
 			m.sent = false
@@ -93,9 +135,13 @@ func (m InviteUserModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	var cmd tea.Cmd
-	m.input, cmd = m.input.Update(msg)
-	return m, cmd
+	if m.focusField == 0 {
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(msg)
+		return m, cmd
+	}
+
+	return m, nil
 }
 
 func (m InviteUserModel) View() string {
@@ -106,8 +152,38 @@ func (m InviteUserModel) View() string {
 
 	s := titleStyle.Render("SprintOS — Invite Member") + "\n\n"
 	s += normalStyle.Render(fmt.Sprintf("Invite someone to join \"%s\"", m.org.Name)) + "\n\n"
-	s += selectedStyle.Render("Email address") + "\n"
+
+	if m.focusField == 0 {
+		s += selectedStyle.Render("Email address") + "\n"
+	} else {
+		s += normalStyle.Render("Email address") + "\n"
+	}
 	s += m.input.View() + "\n\n"
+
+	if m.focusField == 1 {
+		s += selectedStyle.Render("Role") + "\n"
+	} else {
+		s += normalStyle.Render("Role") + "\n"
+	}
+
+	roleRow := ""
+	for i, r := range m.roles {
+		if i == m.roleIdx {
+			roleRow += selectedStyle.Render("[ " + r + " ]")
+		} else {
+			roleRow += dimStyle.Render("  " + r + "  ")
+		}
+		if i < len(m.roles)-1 {
+			roleRow += "  "
+		}
+	}
+	s += roleRow + "\n"
+
+	if m.focusField == 1 {
+		s += dimStyle.Render("← → to change role") + "\n"
+	}
+
+	s += "\n"
 
 	if m.err != nil {
 		s += errorStyle.Render(fmt.Sprintf("Error: %s", m.err.Error())) + "\n\n"
@@ -117,6 +193,6 @@ func (m InviteUserModel) View() string {
 		s += selectedStyle.Render("✓ Invitation sent! They'll receive a command to run in their terminal.") + "\n\n"
 	}
 
-	s += normalStyle.Render("enter to send  •  esc back to settings") + "\n"
+	s += normalStyle.Render("tab to switch field  •  enter to send  •  esc back to settings") + "\n"
 	return s
 }

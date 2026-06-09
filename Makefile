@@ -12,8 +12,8 @@ build:
 build-prod:
 	go build -ldflags "\
 		-X github.com/varmiguemunoz/command_pm_app/internal/config.DatabaseURL=$(DATABASE_URL) \
-		-X github.com/varmiguemunoz/command_pm_app/internal/config.GitHubClientID=$(GITHUB_CLIENT_ID) \
-		-X github.com/varmiguemunoz/command_pm_app/internal/config.GitHubClientSecret=$(GITHUB_CLIENT_SECRET) \
+		-X github.com/varmiguemunoz/command_pm_app/internal/config.GitHubClientID=$(OAUTH_GITHUB_CLIENT_ID) \
+		-X github.com/varmiguemunoz/command_pm_app/internal/config.GitHubClientSecret=$(OAUTH_GITHUB_CLIENT_SECRET) \
 		-X github.com/varmiguemunoz/command_pm_app/internal/config.SMTPHost=$(SMTP_HOST) \
 		-X github.com/varmiguemunoz/command_pm_app/internal/config.SMTPPort=$(SMTP_PORT) \
 		-X github.com/varmiguemunoz/command_pm_app/internal/config.SMTPFrom=$(SMTP_FROM) \

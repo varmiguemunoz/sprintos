@@ -33,6 +33,10 @@ var joinCmd = &cobra.Command{
 			return fmt.Errorf("this invitation has already been accepted")
 		}
 
+		if inv.DeclinedAt != nil {
+			return fmt.Errorf("this invitation has been declined and is no longer valid")
+		}
+
 		fmt.Println("Opening GitHub login to verify your identity...")
 
 		auth.SetupProviders()
@@ -52,7 +56,12 @@ var joinCmd = &cobra.Command{
 			return fmt.Errorf("could not resolve user: %w", err)
 		}
 
-		_, err = teamSvc.AddMember(user.ID, inv.OrganizationID, "user")
+		role := inv.Role
+		if role == "" {
+			role = domain.RoleMember
+		}
+
+		_, err = teamSvc.AddMember(user.ID, inv.OrganizationID, role)
 		if err != nil {
 			return fmt.Errorf("could not add you to the organization: %w", err)
 		}
@@ -61,17 +70,12 @@ var joinCmd = &cobra.Command{
 			return fmt.Errorf("could not mark invitation as accepted: %w", err)
 		}
 
-		if err := auth.SaveSession(&domain.User{
-			Name:       user.Name,
-			Email:      user.Email,
-			Provider:   user.Provider,
-			ProviderID: user.ProviderID,
-		}); err != nil {
+		if err := auth.SaveSession(user); err != nil {
 			return fmt.Errorf("could not save session: %w", err)
 		}
 
 		fmt.Printf("\n✓ Welcome! You have joined \"%s\".\n", inv.Organization.Name)
-		fmt.Println("Run `commandpm start` to launch the app.")
+		fmt.Println("Run `sprintos start` to launch the app.")
 
 		return nil
 	},

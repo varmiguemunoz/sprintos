@@ -6,6 +6,12 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	RoleOwner   = "owner"
+	RoleManager = "manager"
+	RoleMember  = "member"
+)
+
 type User struct {
 	gorm.Model
 	Name       string `gorm:"not null"`
@@ -31,7 +37,7 @@ type TeamMember struct {
 	User           User
 	OrganizationID uint `gorm:"not null;index"`
 	Organization   Organization
-	Role           string `gorm:"not null;default:'user'"`
+	Role           string `gorm:"not null;default:'member'"`
 }
 
 type Project struct {
@@ -110,8 +116,10 @@ type Invitation struct {
 	OrganizationID uint   `gorm:"not null;index"`
 	Organization   Organization
 	Token          string    `gorm:"uniqueIndex;not null"`
+	Role           string    `gorm:"not null;default:'manager'"`
 	ExpiresAt      time.Time `gorm:"not null"`
 	AcceptedAt     *time.Time
+	DeclinedAt     *time.Time
 }
 
 type GitHubIntegration struct {

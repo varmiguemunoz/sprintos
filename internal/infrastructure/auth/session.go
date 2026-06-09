@@ -22,7 +22,7 @@ func sessionPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not get user home directory: %w", err)
 	}
-	return filepath.Join(home, ".commandpm", "session.json"), nil
+	return filepath.Join(home, ".sprintos", "session.json"), nil
 }
 
 func SaveSession(user *domain.User) error {

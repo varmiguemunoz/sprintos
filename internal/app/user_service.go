@@ -37,6 +37,25 @@ func (userService *UserService) FindOrCreateByOAuth(
 		return nil, false, fmt.Errorf("database error: %w", result.Error)
 	}
 
+	var byEmail domain.User
+	emailResult := userService.db.Where("email = ?", email).First(&byEmail)
+
+	if emailResult.Error == nil {
+		updates := map[string]interface{}{
+			"provider":    provider,
+			"provider_id": providerID,
+		}
+		if avatarURL != nil {
+			updates["avatar_url"] = avatarURL
+		}
+		userService.db.Model(&byEmail).Updates(updates)
+		return &byEmail, false, nil
+	}
+
+	if !errors.Is(emailResult.Error, gorm.ErrRecordNotFound) {
+		return nil, false, fmt.Errorf("database error: %w", emailResult.Error)
+	}
+
 	user = domain.User{
 		Name:       name,
 		Email:      email,

@@ -44,6 +44,10 @@ const (
 	screenExportReport
 	screenEditSprint
 	screenGuide
+	screenInvitationPrompt
+	screenOrgSelector
+	screenOrgMembers
+	screenOrgDanger
 )
 
 type NavigateMsg struct {
@@ -61,12 +65,17 @@ type NavigateMsg struct {
 }
 
 type UserResolvedMsg struct {
-	User  *domain.User
-	OrgID uint
-	Err   error
+	User        *domain.User
+	OrgID       uint
+	Org         *domain.Organization
+	Invitations []domain.Invitation
+	MemberOrgs  []domain.Organization
+	Err         error
 }
 
 type GoBackMsg struct{}
+
+type OrgContextClearedMsg struct{}
 
 type AppModel struct {
 	activeScreen      screen
@@ -111,12 +120,37 @@ func (m AppModel) resolveUserCmd(gothUser goth.User) tea.Cmd {
 			return UserResolvedMsg{Err: fmt.Errorf("could not resolve user: %w", err)}
 		}
 
-		org, err := m.orgSvc.GetByOwnerID(user.ID)
-		if err != nil {
-			return UserResolvedMsg{User: user, OrgID: 0}
+		invitations, invErr := m.invitationSvc.GetPendingByEmail(user.Email)
+		if invErr != nil {
+			invitations = nil
 		}
 
-		return UserResolvedMsg{User: user, OrgID: org.ID}
+		memberOrgs, memberErr := m.teamSvc.GetOrganizationsByMemberUserID(user.ID)
+		if memberErr != nil {
+			return UserResolvedMsg{Err: fmt.Errorf("could not load your organizations: %w", memberErr)}
+		}
+
+		ownedOrg, ownedErr := m.orgSvc.GetByOwnerID(user.ID)
+
+		if ownedErr == nil {
+			allOrgs := append([]domain.Organization{*ownedOrg}, memberOrgs...)
+			if len(memberOrgs) == 0 && len(invitations) == 0 {
+				return UserResolvedMsg{User: user, OrgID: ownedOrg.ID, Org: ownedOrg}
+			}
+			return UserResolvedMsg{
+				User:        user,
+				OrgID:       0,
+				Invitations: invitations,
+				MemberOrgs:  allOrgs,
+			}
+		}
+
+		return UserResolvedMsg{
+			User:        user,
+			OrgID:       0,
+			Invitations: invitations,
+			MemberOrgs:  memberOrgs,
+		}
 	}
 }
 
@@ -326,6 +360,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, editSubtaskComment.Init()
 
 		case screenCEODashboard:
+			if msg.Org.ID != 0 {
+				m.currentOrgID = msg.Org.ID
+				org := msg.Org
+				m.currentOrg = &org
+			}
 			ceo := NewCEODashboardModel(m.currentOrgID, m.dashboardSvc, m.projectSvc)
 			m.currentModel = ceo
 			m.activeScreen = screenCEODashboard
@@ -402,6 +441,45 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.activeScreen = screenCreateTask
 			return m, createTask.Init()
 
+		case screenInvitationPrompt:
+			if m.currentUser != nil {
+				prompt := NewInvitationPromptModel(nil, nil, m.currentUser, m.invitationSvc, m.teamSvc)
+				m.currentModel = prompt
+				m.activeScreen = screenInvitationPrompt
+				return m, prompt.Init()
+			}
+
+		case screenOrgSelector:
+			if m.currentUser != nil {
+				memberOrgs, _ := m.teamSvc.GetOrganizationsByMemberUserID(m.currentUser.ID)
+				ownedOrg, ownedErr := m.orgSvc.GetByOwnerID(m.currentUser.ID)
+				allOrgs := memberOrgs
+				if ownedErr == nil {
+					allOrgs = append([]domain.Organization{*ownedOrg}, memberOrgs...)
+				}
+				selector := NewOrgSelectorModel(allOrgs)
+				m.currentModel = selector
+				m.activeScreen = screenOrgSelector
+				return m, selector.Init()
+			}
+
+		case screenOrgMembers:
+			if m.currentOrg != nil && m.currentUser != nil {
+				members := NewOrgMembersModel(*m.currentOrg, m.currentUser.ID, m.teamSvc)
+				m.currentModel = members
+				m.activeScreen = screenOrgMembers
+				return m, members.Init()
+			}
+
+		case screenOrgDanger:
+			if m.currentOrg != nil && m.currentUser != nil {
+				isOwner := m.currentOrg.OwnerID == m.currentUser.ID
+				danger := NewOrgDangerModel(*m.currentOrg, m.currentUser, isOwner, m.orgSvc, m.teamSvc)
+				m.currentModel = danger
+				m.activeScreen = screenOrgDanger
+				return m, danger.Init()
+			}
+
 		case screenLogin:
 			_ = auth.ClearSession()
 			m.currentUser = nil
@@ -420,23 +498,81 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentUser = msg.User
 		m.currentOrgID = msg.OrgID
 
-		if msg.OrgID == 0 {
-			m.isOnboarding = true
-			createOrg := NewCreateOrgModel(m.currentUser.ID, m.orgSvc, m.teamSvc)
-			m.currentModel = createOrg
-			m.activeScreen = screenCreateOrg
-			return m, createOrg.Init()
+		if len(msg.Invitations) > 0 {
+			prompt := NewInvitationPromptModel(msg.Invitations, msg.MemberOrgs, m.currentUser, m.invitationSvc, m.teamSvc)
+			m.currentModel = prompt
+			m.activeScreen = screenInvitationPrompt
+			return m, prompt.Init()
 		}
 
-		org, err := m.orgSvc.GetByID(msg.OrgID)
-		if err == nil {
-			m.currentOrg = org
+		if len(msg.MemberOrgs) == 1 {
+			org := msg.MemberOrgs[0]
+			m.currentOrgID = org.ID
+			m.currentOrg = &org
+			if msg.OrgID != 0 && msg.Org != nil {
+				m.currentOrg = msg.Org
+			}
+			ceo := NewCEODashboardModel(m.currentOrgID, m.dashboardSvc, m.projectSvc)
+			m.currentModel = ceo
+			m.activeScreen = screenCEODashboard
+			return m, ceo.Init()
 		}
 
-		ceo := NewCEODashboardModel(m.currentOrgID, m.dashboardSvc, m.projectSvc)
-		m.currentModel = ceo
-		m.activeScreen = screenCEODashboard
-		return m, ceo.Init()
+		if len(msg.MemberOrgs) > 1 {
+			selector := NewOrgSelectorModel(msg.MemberOrgs)
+			m.currentModel = selector
+			m.activeScreen = screenOrgSelector
+			return m, selector.Init()
+		}
+
+		if msg.OrgID != 0 {
+			if msg.Org != nil {
+				m.currentOrg = msg.Org
+			} else {
+				org, err := m.orgSvc.GetByID(msg.OrgID)
+				if err == nil {
+					m.currentOrg = org
+				}
+			}
+			ceo := NewCEODashboardModel(m.currentOrgID, m.dashboardSvc, m.projectSvc)
+			m.currentModel = ceo
+			m.activeScreen = screenCEODashboard
+			return m, ceo.Init()
+		}
+
+		m.isOnboarding = true
+		createOrg := NewCreateOrgModel(m.currentUser.ID, m.orgSvc, m.teamSvc)
+		m.currentModel = createOrg
+		m.activeScreen = screenCreateOrg
+		return m, createOrg.Init()
+
+	case OrgContextClearedMsg:
+		m.currentOrgID = 0
+		m.currentOrg = nil
+		if m.currentUser != nil {
+			memberOrgs, memberErr := m.teamSvc.GetOrganizationsByMemberUserID(m.currentUser.ID)
+			if memberErr == nil && len(memberOrgs) == 1 {
+				org := memberOrgs[0]
+				m.currentOrgID = org.ID
+				m.currentOrg = &org
+				ceo := NewCEODashboardModel(m.currentOrgID, m.dashboardSvc, m.projectSvc)
+				m.currentModel = ceo
+				m.activeScreen = screenCEODashboard
+				return m, ceo.Init()
+			}
+			if memberErr == nil && len(memberOrgs) > 1 {
+				selector := NewOrgSelectorModel(memberOrgs)
+				m.currentModel = selector
+				m.activeScreen = screenOrgSelector
+				return m, selector.Init()
+			}
+		}
+		m.isOnboarding = true
+		createOrg := NewCreateOrgModel(m.currentUser.ID, m.orgSvc, m.teamSvc)
+		m.currentModel = createOrg
+		m.activeScreen = screenCreateOrg
+		return m, createOrg.Init()
+
 	}
 
 	updated, cmd := m.currentModel.Update(msg)
@@ -477,11 +613,29 @@ func Start(db *gorm.DB) error {
 		user, dbErr := userSvc.GetByEmail(session.Email)
 		if dbErr == nil {
 			startUser = user
-			org, orgErr := orgSvc.GetByOwnerID(user.ID)
-			if orgErr == nil {
-				startOrgID = org.ID
-				startOrg = org
+			invitations, _ := invitationSvc.GetPendingByEmail(user.Email)
+			memberOrgs, _ := teamSvc.GetOrganizationsByMemberUserID(user.ID)
+			ownedOrg, ownedErr := orgSvc.GetByOwnerID(user.ID)
+
+			if ownedErr == nil {
+				allOrgs := append([]domain.Organization{*ownedOrg}, memberOrgs...)
+				if len(memberOrgs) == 0 && len(invitations) == 0 {
+					startOrgID = ownedOrg.ID
+					startOrg = ownedOrg
+					startModel = NewCEODashboardModel(startOrgID, dashboardSvc, projectSvc)
+				} else if len(invitations) > 0 {
+					startModel = NewInvitationPromptModel(invitations, allOrgs, user, invitationSvc, teamSvc)
+				} else {
+					startModel = NewOrgSelectorModel(allOrgs)
+				}
+			} else if len(invitations) > 0 {
+				startModel = NewInvitationPromptModel(invitations, memberOrgs, user, invitationSvc, teamSvc)
+			} else if len(memberOrgs) == 1 {
+				startOrgID = memberOrgs[0].ID
+				startOrg = &memberOrgs[0]
 				startModel = NewCEODashboardModel(startOrgID, dashboardSvc, projectSvc)
+			} else if len(memberOrgs) > 1 {
+				startModel = NewOrgSelectorModel(memberOrgs)
 			} else {
 				startModel = NewCreateOrgModel(user.ID, orgSvc, teamSvc)
 			}

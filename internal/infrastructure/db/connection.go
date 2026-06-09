@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func Connect(databaseURL string, forceMigrate bool) (*gorm.DB, error) {
+func Connect(databaseURL string) (*gorm.DB, error) {
 	database, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
@@ -22,11 +22,8 @@ func Connect(databaseURL string, forceMigrate bool) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	needsMigration := forceMigrate || !schemaExists(database)
-	if needsMigration {
-		if err := Migrate(database); err != nil {
-			return nil, fmt.Errorf("failed to run migrations: %w", err)
-		}
+	if err := Migrate(database); err != nil {
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	return database, nil
@@ -69,6 +66,3 @@ func configurePool(database *gorm.DB) error {
 	return nil
 }
 
-func schemaExists(database *gorm.DB) bool {
-	return database.Migrator().HasTable(&domain.User{})
-}

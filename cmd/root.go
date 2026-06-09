@@ -12,7 +12,6 @@ import (
 )
 
 var DB *gorm.DB
-var migrateDB bool
 
 var rootCmd = &cobra.Command{
 	Use:   "sprintos",
@@ -25,7 +24,7 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("database URL is not configured")
 		}
 
-		conn, err := db.Connect(databaseURL, migrateDB)
+		conn, err := db.Connect(databaseURL)
 		if err != nil {
 			return fmt.Errorf("could not connect to database: %w", err)
 		}
@@ -48,5 +47,4 @@ func Execute() {
 
 func init() {
 	_ = godotenv.Load()
-	rootCmd.PersistentFlags().BoolVar(&migrateDB, "migrate", false, "Run database schema migrations before starting")
 }

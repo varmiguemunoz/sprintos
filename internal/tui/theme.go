@@ -51,6 +51,13 @@ func renderHintBar(pairs ...string) string {
 	return strings.Join(parts, dimStyle.Render("  •  "))
 }
 
+func capitalizeFirst(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
 func renderBar(value, maxValue, barWidth int, style lipgloss.Style) string {
 	if maxValue == 0 || barWidth <= 0 {
 		return ""

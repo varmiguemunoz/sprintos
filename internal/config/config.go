@@ -23,14 +23,14 @@ func GetGitHubClientID() string {
 	if GitHubClientID != "" {
 		return GitHubClientID
 	}
-	return os.Getenv("GITHUB_CLIENT_ID")
+	return os.Getenv("OAUTH_GITHUB_CLIENT_ID")
 }
 
 func GetGitHubClientSecret() string {
 	if GitHubClientSecret != "" {
 		return GitHubClientSecret
 	}
-	return os.Getenv("GITHUB_CLIENT_SECRET")
+	return os.Getenv("OAUTH_GITHUB_CLIENT_SECRET")
 }
 
 func GetSMTPHost() string {
