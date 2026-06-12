@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/markbates/goth"
@@ -48,6 +49,7 @@ const (
 	screenOrgSelector
 	screenOrgMembers
 	screenOrgDanger
+	screenConnecting
 )
 
 type NavigateMsg struct {
@@ -77,6 +79,11 @@ type GoBackMsg struct{}
 
 type OrgContextClearedMsg struct{}
 
+type DBReadyMsg struct {
+	DB  *gorm.DB
+	Err error
+}
+
 type AppModel struct {
 	activeScreen      screen
 	currentModel      tea.Model
@@ -105,6 +112,62 @@ type AppModel struct {
 
 func (m AppModel) Init() tea.Cmd {
 	return m.currentModel.Init()
+}
+
+func (m AppModel) initSessionCmd() tea.Cmd {
+	return func() tea.Msg {
+		session, err := auth.LoadSession()
+		if err != nil {
+			return NavigateMsg{To: screenLogin}
+		}
+
+		user, err := m.userSvc.GetByEmail(session.Email)
+		if err != nil {
+			return NavigateMsg{To: screenLogin}
+		}
+
+		var (
+			invitations []domain.Invitation
+			memberOrgs  []domain.Organization
+			ownedOrg    *domain.Organization
+			ownedErr    error
+		)
+		var wg sync.WaitGroup
+		wg.Add(3)
+		go func() {
+			defer wg.Done()
+			invitations, _ = m.invitationSvc.GetPendingByEmail(user.Email)
+		}()
+		go func() {
+			defer wg.Done()
+			memberOrgs, _ = m.teamSvc.GetOrganizationsByMemberUserID(user.ID)
+		}()
+		go func() {
+			defer wg.Done()
+			ownedOrg, ownedErr = m.orgSvc.GetByOwnerID(user.ID)
+		}()
+		wg.Wait()
+
+		if ownedErr == nil {
+			allOrgs := append([]domain.Organization{*ownedOrg}, memberOrgs...)
+			if len(memberOrgs) == 0 && len(invitations) == 0 {
+				return UserResolvedMsg{User: user, OrgID: ownedOrg.ID, Org: ownedOrg}
+			}
+			return UserResolvedMsg{
+				User:        user,
+				OrgID:       0,
+				Invitations: invitations,
+				MemberOrgs:  allOrgs,
+			}
+		}
+
+		return UserResolvedMsg{
+			User:        user,
+			OrgID:       0,
+			Invitations: invitations,
+			MemberOrgs:  memberOrgs,
+		}
+	}
 }
 
 func (m AppModel) resolveUserCmd(gothUser goth.User) tea.Cmd {
@@ -546,6 +609,31 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.activeScreen = screenCreateOrg
 		return m, createOrg.Init()
 
+	case DBReadyMsg:
+		if msg.Err != nil {
+			conn := NewConnectingModel()
+			conn.err = msg.Err
+			m.currentModel = conn
+			m.activeScreen = screenConnecting
+			return m, conn.Init()
+		}
+		m.userSvc = app.NewUserService(msg.DB)
+		m.orgSvc = app.NewOrganizationService(msg.DB)
+		m.projectSvc = app.NewProjectService(msg.DB)
+		m.stateSvc = app.NewStateService(msg.DB)
+		m.taskSvc = app.NewTaskService(msg.DB)
+		m.teamSvc = app.NewTeamService(msg.DB)
+		m.commentSvc = app.NewCommentService(msg.DB)
+		m.sprintSvc = app.NewSprintService(msg.DB)
+		m.notifSvc = app.NewNotificationService(msg.DB)
+		m.invitationSvc = app.NewInvitationService(msg.DB)
+		m.subtaskSvc = app.NewSubtaskService(msg.DB)
+		m.subtaskCommentSvc = app.NewSubtaskCommentService(msg.DB)
+		m.timeSvc = app.NewTimeEntryService(msg.DB)
+		m.dashboardSvc = app.NewDashboardService(msg.DB)
+		m.reportSvc = app.NewReportService(msg.DB)
+		return m, m.initSessionCmd()
+
 	case OrgContextClearedMsg:
 		m.currentOrgID = 0
 		m.currentOrg = nil
@@ -584,88 +672,25 @@ func (m AppModel) View() string {
 	return m.currentModel.View()
 }
 
-func Start(db *gorm.DB) error {
+func Start(dbChan <-chan *gorm.DB, dbErrChan <-chan error) error {
 	auth.SetupProviders()
 
-	userSvc := app.NewUserService(db)
-	orgSvc := app.NewOrganizationService(db)
-	projectSvc := app.NewProjectService(db)
-	stateSvc := app.NewStateService(db)
-	taskSvc := app.NewTaskService(db)
-	teamSvc := app.NewTeamService(db)
-	commentSvc := app.NewCommentService(db)
-	sprintSvc := app.NewSprintService(db)
-	notifSvc := app.NewNotificationService(db)
-	invitationSvc := app.NewInvitationService(db)
-	subtaskSvc := app.NewSubtaskService(db)
-	subtaskCommentSvc := app.NewSubtaskCommentService(db)
-	timeSvc := app.NewTimeEntryService(db)
-	dashboardSvc := app.NewDashboardService(db)
-	reportSvc := app.NewReportService(db)
-
-	startModel := tea.Model(NewLoginModel())
-	startOrgID := uint(0)
-	var startUser *domain.User
-	var startOrg *domain.Organization
-
-	session, err := auth.LoadSession()
-	if err == nil {
-		user, dbErr := userSvc.GetByEmail(session.Email)
-		if dbErr == nil {
-			startUser = user
-			invitations, _ := invitationSvc.GetPendingByEmail(user.Email)
-			memberOrgs, _ := teamSvc.GetOrganizationsByMemberUserID(user.ID)
-			ownedOrg, ownedErr := orgSvc.GetByOwnerID(user.ID)
-
-			if ownedErr == nil {
-				allOrgs := append([]domain.Organization{*ownedOrg}, memberOrgs...)
-				if len(memberOrgs) == 0 && len(invitations) == 0 {
-					startOrgID = ownedOrg.ID
-					startOrg = ownedOrg
-					startModel = NewCEODashboardModel(startOrgID, dashboardSvc, projectSvc)
-				} else if len(invitations) > 0 {
-					startModel = NewInvitationPromptModel(invitations, allOrgs, user, invitationSvc, teamSvc)
-				} else {
-					startModel = NewOrgSelectorModel(allOrgs)
-				}
-			} else if len(invitations) > 0 {
-				startModel = NewInvitationPromptModel(invitations, memberOrgs, user, invitationSvc, teamSvc)
-			} else if len(memberOrgs) == 1 {
-				startOrgID = memberOrgs[0].ID
-				startOrg = &memberOrgs[0]
-				startModel = NewCEODashboardModel(startOrgID, dashboardSvc, projectSvc)
-			} else if len(memberOrgs) > 1 {
-				startModel = NewOrgSelectorModel(memberOrgs)
-			} else {
-				startModel = NewCreateOrgModel(user.ID, orgSvc, teamSvc)
-			}
-		}
-	}
-
+	connecting := NewConnectingModel()
 	model := AppModel{
-		activeScreen:      screenLogin,
-		currentModel:      startModel,
-		userSvc:           userSvc,
-		orgSvc:            orgSvc,
-		projectSvc:        projectSvc,
-		stateSvc:          stateSvc,
-		taskSvc:           taskSvc,
-		teamSvc:           teamSvc,
-		commentSvc:        commentSvc,
-		invitationSvc:     invitationSvc,
-		sprintSvc:         sprintSvc,
-		notifSvc:          notifSvc,
-		subtaskSvc:        subtaskSvc,
-		subtaskCommentSvc: subtaskCommentSvc,
-		timeSvc:           timeSvc,
-		dashboardSvc:      dashboardSvc,
-		reportSvc:         reportSvc,
-		currentUser:       startUser,
-		currentOrgID:      startOrgID,
-		currentOrg:        startOrg,
+		activeScreen: screenConnecting,
+		currentModel: connecting,
 	}
 
 	p := tea.NewProgram(model, tea.WithAltScreen())
+
+	go func() {
+		select {
+		case db := <-dbChan:
+			p.Send(DBReadyMsg{DB: db})
+		case err := <-dbErrChan:
+			p.Send(DBReadyMsg{Err: err})
+		}
+	}()
 
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("error running app: %w", err)

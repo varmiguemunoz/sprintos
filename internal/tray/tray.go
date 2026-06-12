@@ -23,6 +23,7 @@ const trayPort = ":8765"
 type trayApp struct {
 	mu sync.Mutex
 
+	db     *gorm.DB
 	client *Client
 	pomo   *pomodoro.Session
 
@@ -94,6 +95,7 @@ func Run(database *gorm.DB) error {
 	_ = session
 
 	t := &trayApp{
+		db:         database,
 		client:     client,
 		pomo:       pomo,
 		taskIDs:    make([]uint, tasksPerPage),
@@ -165,6 +167,7 @@ func (t *trayApp) onReady() {
 	go t.loadTasks()
 	go t.eventLoop()
 	go t.updateLoop()
+	go t.keepAlive()
 }
 
 func (t *trayApp) onExit() {
@@ -469,5 +472,15 @@ func (t *trayApp) updatePomoStatus() {
 		systray.SetTitle("🍅 " + pomodoro.FormatDuration(t.pomo.Remaining()))
 	case pomodoro.Grace:
 		systray.SetTitle("⚠ " + pomodoro.FormatDuration(t.pomo.GraceRemaining()))
+	}
+}
+
+func (t *trayApp) keepAlive() {
+	ticker := time.NewTicker(4 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		if t.db != nil {
+			_ = t.db.Exec("SELECT 1").Error
+		}
 	}
 }
