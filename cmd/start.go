@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/varmiguemunoz/sprintos/internal/config"
 	"github.com/varmiguemunoz/sprintos/internal/infrastructure/db"
-	"github.com/varmiguemunoz/sprintos/internal/tray"
 	"github.com/varmiguemunoz/sprintos/internal/tui"
 	"gorm.io/gorm"
 )
@@ -19,10 +18,6 @@ var startCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		go func() {
-			_ = tray.EnsureInstalled()
-		}()
-
 		dbURL := config.GetDatabaseURL()
 		if dbURL == "" {
 			fmt.Fprintln(os.Stderr, "database URL is not configured")

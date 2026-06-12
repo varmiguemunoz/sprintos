@@ -50,6 +50,7 @@ const (
 	screenOrgMembers
 	screenOrgDanger
 	screenConnecting
+	screenTraySetup
 )
 
 type NavigateMsg struct {
@@ -483,6 +484,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentModel = setup
 			m.activeScreen = screenMCPSetup
 			return m, setup.Init()
+
+		case screenTraySetup:
+			traySetup := NewTraySetupModel()
+			m.currentModel = traySetup
+			m.activeScreen = screenTraySetup
+			return m, traySetup.Init()
 
 		case screenInviteUser:
 			if m.currentOrg != nil {

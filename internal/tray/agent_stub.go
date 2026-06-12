@@ -2,6 +2,19 @@
 
 package tray
 
+import "fmt"
+
 func IsInstalled() bool      { return false }
-func Install() error         { return nil }
 func EnsureInstalled() error { return nil }
+
+func Install() error {
+	return fmt.Errorf("menu bar app is only supported on macOS")
+}
+
+func Unload() error {
+	return fmt.Errorf("menu bar app is only supported on macOS")
+}
+
+func Uninstall() error {
+	return fmt.Errorf("menu bar app is only supported on macOS")
+}
