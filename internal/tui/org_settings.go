@@ -109,6 +109,10 @@ func (m OrgSettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenMCPSetup}
 			}
+		case "b":
+			return m, func() tea.Msg {
+				return NavigateMsg{To: screenTraySetup}
+			}
 		case "x":
 			return m, func() tea.Msg {
 				return NavigateMsg{To: screenOrgDanger}
@@ -183,6 +187,6 @@ func (m OrgSettingsModel) View() string {
 		s += selectedStyle.Render("✓ Changes saved successfully") + "\n\n"
 	}
 
-	s += renderHintBar("tab/↓", "next", "enter", "save", "c", "notifications", "i", "invite", "t", "team", "m", "mcp", "x", "danger", "?", "guide", "L", "logout", "esc", "back") + "\n"
+	s += renderHintBar("tab/↓", "next", "enter", "save", "c", "notifications", "i", "invite", "t", "team", "m", "mcp", "b", "tray", "x", "danger", "?", "guide", "L", "logout", "esc", "back") + "\n"
 	return s
 }

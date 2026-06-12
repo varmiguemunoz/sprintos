@@ -5,15 +5,16 @@ package tray
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gen2brain/beeep"
 	"github.com/getlantern/systray"
 	"github.com/google/uuid"
 	"github.com/varmiguemunoz/sprintos/internal/api"
-	"github.com/varmiguemunoz/sprintos/internal/infrastructure/auth"
-	"github.com/varmiguemunoz/sprintos/internal/pomodoro"
 	"gorm.io/gorm"
 )
 
@@ -23,8 +24,8 @@ const trayPort = ":8765"
 type trayApp struct {
 	mu sync.Mutex
 
+	db     *gorm.DB
 	client *Client
-	pomo   *pomodoro.Session
 
 	allTasks    []TaskSummary
 	currentPage int
@@ -39,6 +40,7 @@ type trayApp struct {
 	timerRunning bool
 	timerTaskID  uint
 	initialized  bool
+	lastTick     time.Time
 
 	mTimerHeader *systray.MenuItem
 	mTimerStatus *systray.MenuItem
@@ -50,12 +52,6 @@ type trayApp struct {
 	mTaskNext    *systray.MenuItem
 	mStartTimer  *systray.MenuItem
 	mStopTimer   *systray.MenuItem
-
-	mPomoHeader *systray.MenuItem
-	mPomo15     *systray.MenuItem
-	mPomo30     *systray.MenuItem
-	mPomo45     *systray.MenuItem
-	mPomoStop   *systray.MenuItem
 
 	mQuit *systray.MenuItem
 }
@@ -73,33 +69,26 @@ func Run(database *gorm.DB) error {
 		_ = srv.ListenAndServe()
 	}()
 
-	pomo := pomodoro.New(
-		func() {
-			_ = beeep.Notify(
-				"SprintOS — Pomodoro",
-				"Time's up! Take a break.\nAuto-restarting in 15 seconds — press Stop to cancel.",
-				"",
-			)
-		},
-		func() {
-			_ = beeep.Notify(
-				"SprintOS — Pomodoro",
-				"Pomodoro restarted automatically. Stay focused!",
-				"",
-			)
-		},
-	)
-
-	session, _ := auth.LoadSession()
-	_ = session
-
 	t := &trayApp{
+		db:         database,
 		client:     client,
-		pomo:       pomo,
 		taskIDs:    make([]uint, tasksPerPage),
 		taskTitles: make([]string, tasksPerPage),
 		taskSlots:  make([]*systray.MenuItem, tasksPerPage),
 	}
+
+	go func() {
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+		<-sigCh
+		t.mu.Lock()
+		running := t.timerRunning
+		t.mu.Unlock()
+		if running {
+			_ = t.client.StopTimer()
+		}
+		systray.Quit()
+	}()
 
 	systray.Run(t.onReady, t.onExit)
 	return nil
@@ -144,32 +133,15 @@ func (t *trayApp) onReady() {
 
 	systray.AddSeparator()
 
-	t.mPomoHeader = systray.AddMenuItem("🍅  POMODORO  —  Focus Mode", "")
-	t.mPomoHeader.Disable()
-
-	systray.AddSeparator()
-
-	t.mPomo15 = systray.AddMenuItem("Start 15 minutes", "Focus session of 15 minutes")
-	t.mPomo30 = systray.AddMenuItem("Start 30 minutes", "Focus session of 30 minutes")
-	t.mPomo45 = systray.AddMenuItem("Start 45 minutes", "Focus session of 45 minutes")
-
-	systray.AddSeparator()
-
-	t.mPomoStop = systray.AddMenuItem("■  Stop Pomodoro", "Stop the current focus session")
-	t.mPomoStop.Disable()
-
-	systray.AddSeparator()
-
 	t.mQuit = systray.AddMenuItem("Quit SprintOS", "")
 
 	go t.loadTasks()
 	go t.eventLoop()
 	go t.updateLoop()
+	go t.keepAlive()
 }
 
-func (t *trayApp) onExit() {
-	t.pomo.Stop()
-}
+func (t *trayApp) onExit() {}
 
 func (t *trayApp) loadTasks() {
 	for i := 0; i < 20; i++ {
@@ -316,24 +288,6 @@ func (t *trayApp) handleStopTimer() {
 	systray.SetTitle("")
 }
 
-func (t *trayApp) handlePomoStart(minutes int) {
-	t.pomo.Stop()
-	t.pomo.Start(minutes)
-	t.mPomoStop.Enable()
-	t.mPomo15.Disable()
-	t.mPomo30.Disable()
-	t.mPomo45.Disable()
-}
-
-func (t *trayApp) handlePomoStop() {
-	t.pomo.Stop()
-	t.mPomoStop.Disable()
-	t.mPomo15.Enable()
-	t.mPomo30.Enable()
-	t.mPomo45.Enable()
-	systray.SetTitle("")
-}
-
 func (t *trayApp) handleTaskPrev() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -368,19 +322,18 @@ func (t *trayApp) eventLoop() {
 			t.handleStartTimer()
 		case <-t.mStopTimer.ClickedCh:
 			t.handleStopTimer()
-		case <-t.mPomo15.ClickedCh:
-			t.handlePomoStart(15)
-		case <-t.mPomo30.ClickedCh:
-			t.handlePomoStart(30)
-		case <-t.mPomo45.ClickedCh:
-			t.handlePomoStart(45)
-		case <-t.mPomoStop.ClickedCh:
-			t.handlePomoStop()
 		case <-t.mTaskPrev.ClickedCh:
 			t.handleTaskPrev()
 		case <-t.mTaskNext.ClickedCh:
 			t.handleTaskNext()
 		case <-t.mQuit.ClickedCh:
+			t.mu.Lock()
+			running := t.timerRunning
+			t.mu.Unlock()
+			if running {
+				_ = t.client.StopTimer()
+			}
+			_ = Unload()
 			systray.Quit()
 			return
 		}
@@ -392,8 +345,27 @@ func (t *trayApp) updateLoop() {
 	defer ticker.Stop()
 
 	for range ticker.C {
+		now := time.Now()
+
+		t.mu.Lock()
+		last := t.lastTick
+		running := t.timerRunning
+		t.lastTick = now
+		t.mu.Unlock()
+
+		if !last.IsZero() && now.Sub(last) > 90*time.Second && running {
+			_ = t.client.StopTimer()
+			t.mu.Lock()
+			t.timerRunning = false
+			t.timerTaskID = 0
+			t.mu.Unlock()
+			t.mStartTimer.Enable()
+			t.mStopTimer.Disable()
+			t.mTimerStatus.SetTitle("Status: Stopped (sleep detected)")
+			systray.SetTitle("")
+		}
+
 		t.updateTimerStatus()
-		t.updatePomoStatus()
 	}
 }
 
@@ -455,19 +427,15 @@ func (t *trayApp) updateTimerStatus() {
 	}
 
 	t.mTimerStatus.SetTitle("Active: " + label + " — " + clampStr(status.TaskTitle, 24))
-
-	if t.pomo.GetState() == pomodoro.Idle {
-		systray.SetTitle("⏱ " + label)
-	}
+	systray.SetTitle("⏱ " + label)
 }
 
-func (t *trayApp) updatePomoStatus() {
-	state := t.pomo.GetState()
-
-	switch state {
-	case pomodoro.Running:
-		systray.SetTitle("🍅 " + pomodoro.FormatDuration(t.pomo.Remaining()))
-	case pomodoro.Grace:
-		systray.SetTitle("⚠ " + pomodoro.FormatDuration(t.pomo.GraceRemaining()))
+func (t *trayApp) keepAlive() {
+	ticker := time.NewTicker(4 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		if t.db != nil {
+			_ = t.db.Exec("SELECT 1").Error
+		}
 	}
 }

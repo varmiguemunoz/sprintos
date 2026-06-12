@@ -38,6 +38,18 @@ func DetectTools() []AITool {
 			Name:       "Zed",
 			ConfigPath: configPath(".config", "zed", "settings.json"),
 		},
+		{
+			Name:       "OpenCode",
+			ConfigPath: configPath(".config", "opencode", "opencode.json"),
+		},
+		{
+			Name:       "Codex",
+			ConfigPath: configPath(".codex", "config.toml"),
+		},
+		{
+			Name:       "Antigravity",
+			ConfigPath: configPath(".gemini", "config", "mcp_config.json"),
+		},
 	}
 
 	for i := range tools {

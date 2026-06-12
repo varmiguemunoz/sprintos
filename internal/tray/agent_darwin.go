@@ -36,7 +36,7 @@ const plistTmpl = `<?xml version="1.0" encoding="UTF-8"?>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>KeepAlive</key>
-	<true/>
+	<false/>
 	<key>StandardOutPath</key>
 	<string>{{.LogOut}}</string>
 	<key>StandardErrorPath</key>
@@ -150,4 +150,21 @@ func EnsureInstalled() error {
 		return nil
 	}
 	return Install()
+}
+
+func Unload() error {
+	path, err := plistPath()
+	if err != nil {
+		return err
+	}
+	return exec.Command("launchctl", "unload", path).Run()
+}
+
+func Uninstall() error {
+	path, err := plistPath()
+	if err != nil {
+		return err
+	}
+	_ = exec.Command("launchctl", "unload", path).Run()
+	return os.Remove(path)
 }
